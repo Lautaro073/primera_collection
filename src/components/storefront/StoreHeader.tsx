@@ -44,8 +44,16 @@ export function StoreHeader() {
     <>
       <header className="border-b border-zinc-200 bg-white/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-          <Link href="/" className="text-lg font-semibold tracking-tight text-black">
-            Primera Collection
+          <Link
+            href="/"
+            className="inline-flex items-center gap-3 text-black"
+          >
+            <span className="inline-flex size-9 items-center justify-center rounded-full border border-zinc-200 bg-zinc-50 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+              PC
+            </span>
+            <span className="text-lg font-semibold tracking-tight">
+              Primera Collection
+            </span>
           </Link>
           <nav className="flex items-center gap-3 text-sm text-zinc-600">
             <Link href="/" className="transition hover:text-black">
