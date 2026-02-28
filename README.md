@@ -251,11 +251,6 @@ Pendientes naturales:
 - stock por variante/talle
 - flujo de checkout final con pasarela real en produccion
 
-## Nota tecnica
-
-La deuda tecnica sobre stock por talle esta documentada en:
-
-- `deuda-tecnica/variantes-stock-por-medida.md`
 
 ## Autor
 
