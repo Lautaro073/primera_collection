@@ -14,6 +14,7 @@ interface ProductTagSection {
 
 interface ProductCategorySection {
   id: string;
+  anchorId: string;
   label: string;
   items: Product[];
 }
@@ -32,13 +33,14 @@ export default async function Home() {
   const categorySections: ProductCategorySection[] = categories
     .map((category) => ({
       id: category.id_categoria,
+      anchorId: `categoria-${category.slug || category.id_categoria}`,
       label: category.nombre_categoria,
       items: products.filter((product) => product.id_categoria === category.id_categoria),
     }))
     .filter((section) => section.items.length > 0);
 
   for (const product of products) {
-    const tag = product.tag.trim();
+    const tag = typeof product.tag === "string" ? product.tag.trim() : "";
 
     if (!tag) {
       untaggedProducts.push(product);
@@ -60,7 +62,10 @@ export default async function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f8f8f8_0%,#ffffff_28%,#fafafa_100%)] text-black">
+    <div
+      id="inicio"
+      className="min-h-screen bg-[linear-gradient(180deg,#f8f8f8_0%,#ffffff_28%,#fafafa_100%)] text-black"
+    >
       <StoreHeader />
 
       <main className="mx-auto flex max-w-6xl flex-col gap-14 px-4 py-8 sm:px-6 sm:py-10">
@@ -138,7 +143,7 @@ export default async function Home() {
 
                 <div className="space-y-10">
                   {categorySections.map((section) => (
-                    <section key={section.id} className="space-y-5">
+                    <section key={section.id} id={section.anchorId} className="space-y-5">
                       <div className="space-y-2">
                         <h3 className="text-2xl font-semibold tracking-tight">{section.label}</h3>
                       </div>
