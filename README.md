@@ -1,6 +1,6 @@
 ﻿# primera_collection
 
-Base de Next.js para migrar el backend de VG Hogar por etapas.
+Base de Next.js para migrar el backend de Primera Collection por etapas.
 
 ## Etapa actual
 - Next.js App Router
