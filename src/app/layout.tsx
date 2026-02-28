@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Primera Collection | API Next + Firebase",
+  title: "De Primera Collection | API Next + Firebase",
   description: "Etapa 1 de migracion a Next.js con Firebase",
 };
 

@@ -108,7 +108,7 @@ export async function StoreFooter() {
         <div className="grid gap-10 border-b border-zinc-200 pb-8 md:grid-cols-[minmax(0,1.3fr)_minmax(0,0.8fr)_minmax(0,0.9fr)]">
           <div className="space-y-4">
             <p className="text-xs font-medium uppercase tracking-[0.3em] text-zinc-500">
-              Primera Collection
+              De Primera Collection
             </p>
             <h2 className="max-w-md text-2xl font-semibold tracking-tight text-black">
               Ropa, calzado y pedidos directos sin vueltas.
@@ -135,7 +135,7 @@ export async function StoreFooter() {
                 rel="noreferrer"
                 className="font-medium text-zinc-700 transition hover:text-black"
               >
-                Primera Collection
+                De Primera Collection
               </a>
               . Todos los derechos reservados.
             </p>

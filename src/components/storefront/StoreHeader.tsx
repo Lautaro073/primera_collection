@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { ShoppingBag } from "lucide-react";
 import { CartDrawer } from "@/components/storefront/CartDrawer";
 import { useStoreCart } from "@/components/storefront/StoreCartProvider";
@@ -46,14 +47,17 @@ export function StoreHeader() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
           <Link
             href="/"
-            className="inline-flex items-center gap-3 text-black"
+            className="inline-flex items-center text-black"
           >
-            <span className="inline-flex size-9 items-center justify-center rounded-full border border-zinc-200 bg-zinc-50 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
-              PC
-            </span>
-            <span className="text-lg font-semibold tracking-tight">
-              Primera Collection
-            </span>
+            <Image
+              src="/assets/deprimeracollection.jpg"
+              alt="De Primera Collection"
+              width={80}
+              height={80}
+              className="size-20 rounded-3xl border border-zinc-200 object-cover shadow-sm"
+              priority
+            />
+            <span className="sr-only">De Primera Collection</span>
           </Link>
           <nav className="flex items-center gap-3 text-sm text-zinc-600">
             <Link href="/" className="transition hover:text-black">
