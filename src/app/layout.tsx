@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import { StoreCartProvider } from "@/components/storefront/StoreCartProvider";
@@ -14,9 +15,15 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata = {
-  title: "De Primera Collection | API Next + Firebase",
-  description: "Etapa 1 de migracion a Next.js con Firebase",
+export const metadata: Metadata = {
+  title: "De Primera Collection",
+  description:
+    "Showroom especializado en ropa deportiva, botines de futbol y accesorios deportivos. Encontra las mejores marcas y los ultimos lanzamientos para potenciar tu rendimiento.",
+  icons: {
+    icon: "/assets/deprimeracollection.jpg",
+    shortcut: "/assets/deprimeracollection.jpg",
+    apple: "/assets/deprimeracollection.jpg",
+  },
 };
 
 interface RootLayoutProps {

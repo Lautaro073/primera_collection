@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState, useTransition, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { LoaderCircle } from "lucide-react";
 import { type Auth, onIdTokenChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { isErrorWithMessage } from "@/types/shared";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getFirebaseClientAuth } from "@/lib/firebase/auth";
 import { getAdminSession } from "@/lib/admin/client";
@@ -14,41 +16,43 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState("");
   const [auth, setAuth] = useState<Auth | null>(null);
   const [booting, setBooting] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     let unsubscribe: () => void = () => undefined;
 
-    startTransition(() => {
-      void (async () => {
-        try {
-          const authInstance = await getFirebaseClientAuth();
-          setAuth(authInstance);
+    void (async () => {
+      try {
+        const authInstance = await getFirebaseClientAuth();
+        setAuth(authInstance);
 
-          unsubscribe = onIdTokenChanged(authInstance, async (user) => {
-            if (!user) {
-              setBooting(false);
-              return;
-            }
+        unsubscribe = onIdTokenChanged(authInstance, async (user) => {
+          if (!user) {
+            setBooting(false);
+            return;
+          }
 
-            const session = await getAdminSession(authInstance, user);
+          const session = await getAdminSession(authInstance, user);
 
-            if (!session) {
-              await signOut(authInstance);
-              setError("Tu usuario existe, pero no tiene el claim admin.");
-              setBooting(false);
-              return;
-            }
+          if (!session) {
+            await signOut(authInstance);
+            setError("Tu usuario existe, pero no tiene el claim admin.");
+            setBooting(false);
+            return;
+          }
 
-            router.replace("/admin/catalogo");
-          });
-        } catch (currentError: unknown) {
-          setError(isErrorWithMessage(currentError) ? currentError.message : "No se pudo inicializar el login.");
-          setBooting(false);
-        }
-      })();
-    });
+          router.replace("/admin/catalogo");
+        });
+      } catch (currentError: unknown) {
+        setError(
+          isErrorWithMessage(currentError)
+            ? currentError.message
+            : "No se pudo inicializar el login."
+        );
+        setBooting(false);
+      }
+    })();
 
     return () => unsubscribe();
   }, [router]);
@@ -62,31 +66,30 @@ export default function AdminLoginPage() {
       return;
     }
 
-    startTransition(() => {
-      void (async () => {
-        try {
-          const credentials = await signInWithEmailAndPassword(
-            auth,
-            email.trim(),
-            password
-          );
+    setIsSubmitting(true);
 
-          const session = await getAdminSession(auth, credentials.user);
+    try {
+      const credentials = await signInWithEmailAndPassword(
+        auth,
+        email.trim(),
+        password
+      );
 
-          if (!session) {
-            await signOut(auth);
-            setError("El usuario inicio sesion, pero no tiene permisos de administrador.");
-            return;
-          }
+      const session = await getAdminSession(auth, credentials.user);
 
-          router.replace("/admin/catalogo");
-        } catch {
-          setError("No se pudo iniciar sesion. Revisa email, password y claims.");
-        } finally {
-          setBooting(false);
-        }
-      })();
-    });
+      if (!session) {
+        await signOut(auth);
+        setError("El usuario inicio sesion, pero no tiene permisos de administrador.");
+        return;
+      }
+
+      router.replace("/admin/catalogo");
+    } catch {
+      setError("No se pudo iniciar sesion. Revisa email, password.");
+    } finally {
+      setIsSubmitting(false);
+      setBooting(false);
+    }
   }
 
   return (
@@ -133,16 +136,23 @@ export default function AdminLoginPage() {
             </div>
           ) : null}
 
-          <button
-            className="w-full rounded-md bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400"
+          <Button
             type="submit"
-            disabled={booting || isPending}
+            className="w-full"
+            disabled={booting || isSubmitting}
+            aria-busy={booting || isSubmitting}
           >
-            {booting || isPending ? "Validando..." : "Entrar"}
-          </button>
+            {booting || isSubmitting ? (
+              <>
+                <LoaderCircle className="animate-spin" />
+                Validando...
+              </>
+            ) : (
+              "Iniciar Sesion"
+            )}
+          </Button>
         </form>
       </section>
     </main>
   );
 }
-
