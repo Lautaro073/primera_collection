@@ -1,6 +1,7 @@
 "use client";
 
 import { LoaderCircle } from "lucide-react";
+import { DeleteConfirmDialog } from "@/components/admin/DeleteConfirmDialog";
 import { AdminHeader } from "@/components/admin/AdminHeader";
 import { AdminStatus } from "@/components/admin/AdminStatus";
 import { AdminTabs } from "@/components/admin/AdminTabs";
@@ -30,6 +31,19 @@ export default function AdminCatalogPage() {
       <div className="mx-auto flex max-w-6xl flex-col gap-4">
         <AdminHeader email={admin.sessionEmail} onLogout={admin.logout} />
         <AdminStatus notice={admin.notice} error={admin.error} />
+        <DeleteConfirmDialog
+          open={admin.deleteDialogOpen}
+          targetType={admin.deleteDialogType}
+          targetLabel={admin.deleteDialogLabel}
+          error={admin.deleteDialogError}
+          isPending={admin.deleteSubmitting}
+          onOpenChange={(open) => {
+            if (!open) {
+              admin.closeDeleteDialog();
+            }
+          }}
+          onConfirm={admin.confirmDelete}
+        />
 
         <AdminTabs
           activeTab={admin.activeTab}
@@ -52,7 +66,7 @@ export default function AdminCatalogPage() {
               onSubmit={admin.submitProduct}
               onCancel={admin.resetProductForm}
               onEdit={admin.beginProductEdit}
-              onDelete={admin.deleteProduct}
+              onRequestDelete={admin.requestProductDelete}
             />
           }
           categoriesContent={
@@ -66,7 +80,7 @@ export default function AdminCatalogPage() {
               onSubmit={admin.submitCategory}
               onCancel={admin.resetCategoryForm}
               onEdit={admin.beginCategoryEdit}
-              onDelete={admin.deleteCategory}
+              onRequestDelete={admin.requestCategoryDelete}
             />
           }
         />

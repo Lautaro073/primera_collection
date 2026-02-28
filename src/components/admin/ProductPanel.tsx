@@ -42,7 +42,7 @@ interface ProductPanelProps {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onCancel: () => void;
   onEdit: (product: Product) => void;
-  onDelete: (productId: string) => void;
+  onRequestDelete: (product: Product) => void;
 }
 
 export function ProductPanel({
@@ -62,7 +62,7 @@ export function ProductPanel({
   onSubmit,
   onCancel,
   onEdit,
-  onDelete,
+  onRequestDelete,
 }: ProductPanelProps) {
   const handleTextField =
     (field: keyof ProductFormState) =>
@@ -294,7 +294,7 @@ export function ProductPanel({
                             size="icon"
                             variant="ghost"
                             className="size-8 hover:bg-zinc-100"
-                            onClick={() => onDelete(product.id_producto)}
+                            onClick={() => onRequestDelete(product)}
                             type="button"
                           >
                             <span className="sr-only">Eliminar</span>

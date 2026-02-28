@@ -31,7 +31,7 @@ interface CategoryPanelProps {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onCancel: () => void;
   onEdit: (category: Category) => void;
-  onDelete: (categoryId: string) => void;
+  onRequestDelete: (category: Category) => void;
 }
 
 export function CategoryPanel({
@@ -44,7 +44,7 @@ export function CategoryPanel({
   onSubmit,
   onCancel,
   onEdit,
-  onDelete,
+  onRequestDelete,
 }: CategoryPanelProps) {
   const handleNameChange = (event: ChangeEvent<HTMLInputElement>) => {
     onFieldChange("nombre_categoria", event.target.value);
@@ -136,7 +136,7 @@ export function CategoryPanel({
                             size="icon"
                             variant="ghost"
                             className="size-8 hover:bg-zinc-100"
-                            onClick={() => onDelete(category.id_categoria)}
+                            onClick={() => onRequestDelete(category)}
                             type="button"
                           >
                             <span className="sr-only">Eliminar</span>

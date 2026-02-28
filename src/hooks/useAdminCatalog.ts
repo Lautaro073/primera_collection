@@ -65,6 +65,11 @@ interface UseAdminCatalogResult {
   isPending: boolean;
   categorySubmitting: boolean;
   productSubmitting: boolean;
+  deleteDialogOpen: boolean;
+  deleteDialogType: "category" | "product" | null;
+  deleteDialogLabel: string;
+  deleteDialogError: string;
+  deleteSubmitting: boolean;
   categoryForm: CategoryFormState;
   productForm: ProductFormState;
   updateCategoryField: (field: keyof CategoryFormState, value: string) => void;
@@ -76,9 +81,17 @@ interface UseAdminCatalogResult {
   beginProductEdit: (product: Product) => void;
   submitCategory: (event: FormEvent<HTMLFormElement>) => void;
   submitProduct: (event: FormEvent<HTMLFormElement>) => void;
-  deleteCategory: (categoryId: string) => void;
-  deleteProduct: (productId: string) => void;
+  requestCategoryDelete: (category: Category) => void;
+  requestProductDelete: (product: Product) => void;
+  closeDeleteDialog: () => void;
+  confirmDelete: () => void;
   logout: () => void;
+}
+
+interface DeleteTarget {
+  kind: "category" | "product";
+  id: string;
+  label: string;
 }
 
 const EMPTY_CATEGORY_FORM: CategoryFormState = {
@@ -114,8 +127,11 @@ export function useAdminCatalog(): UseAdminCatalogResult {
   const [imagePreview, setImagePreview] = useState("");
   const [isPending, startTransition] = useTransition();
   const [pendingAction, setPendingAction] = useState<
-    "category-submit" | "product-submit" | "category-delete" | "product-delete" | "logout" | null
+    "category-submit" | "product-submit" | "logout" | null
   >(null);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [deleteError, setDeleteError] = useState("");
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
 
   const [categoryForm, setCategoryForm] = useState<CategoryFormState>(EMPTY_CATEGORY_FORM);
   const [productForm, setProductForm] = useState<ProductFormState>(EMPTY_PRODUCT_FORM);
@@ -240,11 +256,17 @@ export function useAdminCatalog(): UseAdminCatalogResult {
   function setSuccess(message: string): void {
     setNotice(message);
     setError("");
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   }
 
   function setFailure(message: string): void {
     setError(message);
     setNotice("");
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   }
 
   function updateCategoryField(
@@ -292,6 +314,33 @@ export function useAdminCatalog(): UseAdminCatalogResult {
     setEditingProductId("");
     setExistingProductImage("");
     clearObjectPreview();
+  }
+
+  function requestCategoryDelete(category: Category): void {
+    setDeleteError("");
+    setDeleteTarget({
+      kind: "category",
+      id: category.id_categoria,
+      label: category.nombre_categoria,
+    });
+  }
+
+  function requestProductDelete(product: Product): void {
+    setDeleteError("");
+    setDeleteTarget({
+      kind: "product",
+      id: product.id_producto,
+      label: product.nombre,
+    });
+  }
+
+  function closeDeleteDialog(): void {
+    if (deleteSubmitting) {
+      return;
+    }
+
+    setDeleteError("");
+    setDeleteTarget(null);
   }
 
   function beginCategoryEdit(category: Category): void {
@@ -438,81 +487,63 @@ export function useAdminCatalog(): UseAdminCatalogResult {
     });
   }
 
-  function deleteCategory(categoryId: string): void {
-    if (!auth || !window.confirm("Se eliminara la categoria. Continuar?")) {
+  function confirmDelete(): void {
+    if (!auth || !deleteTarget) {
       return;
     }
 
-    setPendingAction("category-delete");
+    const currentTarget = deleteTarget;
+    setDeleteSubmitting(true);
+    setDeleteError("");
 
     startTransition(() => {
       void (async () => {
         try {
-          const response = await authorizedFetch(auth, `/api/categorias/${categoryId}`, {
+          const endpoint =
+            currentTarget.kind === "category"
+              ? `/api/categorias/${currentTarget.id}`
+              : `/api/productos/${currentTarget.id}`;
+          const response = await authorizedFetch(auth, endpoint, {
             method: "DELETE",
           });
           const payload = await parseJson<unknown>(response);
 
           if (!response.ok) {
             throw new Error(
-              getResponseErrorMessage(payload, "No se pudo eliminar la categoria.")
+              getResponseErrorMessage(
+                payload,
+                currentTarget.kind === "category"
+                  ? "No se pudo eliminar la categoria."
+                  : "No se pudo eliminar el producto."
+              )
             );
           }
 
-          if (editingCategoryId === categoryId) {
+          if (currentTarget.kind === "category" && editingCategoryId === currentTarget.id) {
             resetCategoryForm();
           }
 
-          await loadCatalog(auth);
-          setSuccess("Categoria eliminada correctamente.");
-        } catch (currentError: unknown) {
-          setFailure(
-            isErrorWithMessage(currentError)
-              ? currentError.message
-              : "No se pudo eliminar la categoria."
-          );
-        } finally {
-          setPendingAction(null);
-        }
-      })();
-    });
-  }
-
-  function deleteProduct(productId: string): void {
-    if (!auth || !window.confirm("Se eliminara el producto. Continuar?")) {
-      return;
-    }
-
-    setPendingAction("product-delete");
-
-    startTransition(() => {
-      void (async () => {
-        try {
-          const response = await authorizedFetch(auth, `/api/productos/${productId}`, {
-            method: "DELETE",
-          });
-          const payload = await parseJson<unknown>(response);
-
-          if (!response.ok) {
-            throw new Error(
-              getResponseErrorMessage(payload, "No se pudo eliminar el producto.")
-            );
-          }
-
-          if (editingProductId === productId) {
+          if (currentTarget.kind === "product" && editingProductId === currentTarget.id) {
             resetProductForm();
           }
 
           await loadCatalog(auth);
-          setSuccess("Producto eliminado correctamente.");
+          setDeleteTarget(null);
+          setSuccess(
+            currentTarget.kind === "category"
+              ? "Categoria eliminada correctamente."
+              : "Producto eliminado correctamente."
+          );
         } catch (currentError: unknown) {
-          setFailure(
+          setDeleteError(
             isErrorWithMessage(currentError)
               ? currentError.message
-              : "No se pudo eliminar el producto."
+              : currentTarget.kind === "category"
+                ? "No se pudo eliminar la categoria."
+                : "No se pudo eliminar el producto."
           );
         } finally {
-          setPendingAction(null);
+          setDeleteSubmitting(false);
         }
       })();
     });
@@ -567,6 +598,11 @@ export function useAdminCatalog(): UseAdminCatalogResult {
     isPending,
     categorySubmitting: pendingAction === "category-submit",
     productSubmitting: pendingAction === "product-submit",
+    deleteDialogOpen: Boolean(deleteTarget),
+    deleteDialogType: deleteTarget?.kind || null,
+    deleteDialogLabel: deleteTarget?.label || "",
+    deleteDialogError: deleteError,
+    deleteSubmitting,
     categoryForm,
     productForm,
     updateCategoryField,
@@ -578,8 +614,10 @@ export function useAdminCatalog(): UseAdminCatalogResult {
     beginProductEdit,
     submitCategory,
     submitProduct,
-    deleteCategory,
-    deleteProduct,
+    requestCategoryDelete,
+    requestProductDelete,
+    closeDeleteDialog,
+    confirmDelete,
     logout,
   };
 }
