@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
+import { StoreCartProvider } from "@/components/storefront/StoreCartProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -25,7 +26,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="es">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        {children}
+        <StoreCartProvider>{children}</StoreCartProvider>
       </body>
     </html>
   );

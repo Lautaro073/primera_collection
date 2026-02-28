@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Breadcrumbs } from "@/components/storefront/Breadcrumbs";
 import { ProductCard } from "@/components/storefront/ProductCard";
+import { ProductPurchasePanel } from "@/components/storefront/ProductPurchasePanel";
 import { StoreHeader } from "@/components/storefront/StoreHeader";
 import { getProductById, listAllProducts, listCategories } from "@/lib/catalog/service";
 import { formatCurrency, getCategoryHref } from "@/lib/storefront";
@@ -98,23 +99,9 @@ export default async function ProductPage(
                   {product.stock > 0 ? `${product.stock} disponibles` : "Sin stock"}
                 </p>
               </div>
-              <div>
-                <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">Etiqueta</p>
-                <p className="mt-2 text-base font-medium text-black">
-                  {product.tag || "Sin etiqueta"}
-                </p>
-              </div>
-              <div className="sm:col-span-2">
-                <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">
-                  {product.tipo_medida === "calzado" ? "Numeros disponibles" : "Talles disponibles"}
-                </p>
-                <p className="mt-2 text-base font-medium text-black">
-                  {product.medidas.length > 0
-                    ? product.medidas.join(", ")
-                    : "No aplica para este producto"}
-                </p>
-              </div>
             </div>
+
+            <ProductPurchasePanel product={product} className="w-full sm:w-auto" />
           </div>
         </section>
 

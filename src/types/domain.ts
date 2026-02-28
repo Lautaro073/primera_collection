@@ -86,6 +86,7 @@ export interface ProductFormState {
 export interface CartItemRecord {
   productId: string;
   quantity: number;
+  selectedMeasure?: string;
 }
 
 export interface RawCartRecord {
@@ -96,8 +97,11 @@ export interface RawCartRecord {
 }
 
 export interface SerializedCartItem {
+  clave: string;
   cantidad: number;
   id_producto: string;
+  medida_seleccionada: string | null;
+  stock: number;
   nombre: string;
   precio: number;
   tag: string | null;

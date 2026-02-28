@@ -11,11 +11,15 @@ interface CartProductParams {
 export async function PUT(request: Request, context: RouteContext<CartProductParams>) {
   try {
     const { id_carrito, id_producto } = await context.params;
-    const body = (await request.json()) as { cantidad?: number | string };
+    const body = (await request.json()) as {
+      cantidad?: number | string;
+      medida?: string;
+    };
     const items = await replaceCartItemQuantity(
       id_carrito,
       id_producto,
-      body.cantidad ?? 0
+      body.cantidad ?? 0,
+      body.medida
     );
 
     return NextResponse.json({
@@ -27,10 +31,11 @@ export async function PUT(request: Request, context: RouteContext<CartProductPar
   }
 }
 
-export async function DELETE(_request: Request, context: RouteContext<CartProductParams>) {
+export async function DELETE(request: Request, context: RouteContext<CartProductParams>) {
   try {
     const { id_carrito, id_producto } = await context.params;
-    await removeCartItem(id_carrito, id_producto);
+    const medida = new URL(request.url).searchParams.get("medida");
+    await removeCartItem(id_carrito, id_producto, medida);
 
     return NextResponse.json({ message: "Producto eliminado del carrito" });
   } catch (error: unknown) {

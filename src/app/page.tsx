@@ -1,11 +1,22 @@
-import Link from "next/link";
 import { listAllProducts, listCategories } from "@/lib/catalog/service";
 import { CategoryPill } from "@/components/storefront/CategoryPill";
 import { EmptyCatalogState } from "@/components/storefront/EmptyCatalogState";
 import { ProductGridWithQuickView } from "@/components/storefront/ProductGridWithQuickView";
 import { StoreHeader } from "@/components/storefront/StoreHeader";
+import type { Product } from "@/types/domain";
 
 export const dynamic = "force-dynamic";
+
+interface ProductTagSection {
+  label: string;
+  items: Product[];
+}
+
+interface ProductCategorySection {
+  id: string;
+  label: string;
+  items: Product[];
+}
 
 export default async function Home() {
   const [categories, products] = await Promise.all([
@@ -13,62 +24,47 @@ export default async function Home() {
     listAllProducts(),
   ]);
 
-  const latestProducts = products.slice(0, 8);
   const categoryNameById = Object.fromEntries(
     categories.map((category) => [category.id_categoria, category.nombre_categoria])
   );
+  const tagSections = new Map<string, ProductTagSection>();
+  const untaggedProducts: Product[] = [];
+  const categorySections: ProductCategorySection[] = categories
+    .map((category) => ({
+      id: category.id_categoria,
+      label: category.nombre_categoria,
+      items: products.filter((product) => product.id_categoria === category.id_categoria),
+    }))
+    .filter((section) => section.items.length > 0);
+
+  for (const product of products) {
+    const tag = product.tag.trim();
+
+    if (!tag) {
+      untaggedProducts.push(product);
+      continue;
+    }
+
+    const tagKey = tag.toLowerCase();
+    const currentSection = tagSections.get(tagKey);
+
+    if (currentSection) {
+      currentSection.items.push(product);
+      continue;
+    }
+
+    tagSections.set(tagKey, {
+      label: tag,
+      items: [product],
+    });
+  }
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f8f8f8_0%,#ffffff_28%,#fafafa_100%)] text-black">
       <StoreHeader />
 
       <main className="mx-auto flex max-w-6xl flex-col gap-14 px-4 py-8 sm:px-6 sm:py-10">
-        {/* <section className="grid gap-8 rounded-[2rem] border border-zinc-200 bg-[linear-gradient(135deg,#ffffff_0%,#f6f6f6_55%,#ececec_100%)] p-6 sm:p-8 lg:grid-cols-[1.3fr_0.7fr]">
-          <div className="space-y-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500">
-              Tienda
-            </p>
-            <h1 className="max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl">
-              Catalogo limpio, rapido y listo para comprar.
-            </h1>
-            <p className="max-w-2xl text-sm leading-7 text-zinc-600 sm:text-base">
-              El backend ya esta migrado a Next y Firebase. Esta etapa deja lista
-              la experiencia publica para navegar categorias y productos.
-            </p>
-
-            <div className="flex flex-wrap gap-3">
-              <Link
-                href="#catalogo"
-                className="inline-flex rounded-full bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-zinc-800"
-              >
-                Ver destacados
-              </Link>
-              <Link
-                href="#categorias"
-                className="inline-flex rounded-full border border-zinc-300 bg-white px-5 py-3 text-sm font-medium text-black transition hover:border-black"
-              >
-                Explorar categorias
-              </Link>
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-            <div className="rounded-3xl border border-zinc-200 bg-white p-5">
-              <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">
-                Categorias activas
-              </p>
-              <p className="mt-3 text-3xl font-semibold">{categories.length}</p>
-            </div>
-            <div className="rounded-3xl border border-zinc-200 bg-black p-5 text-white">
-              <p className="text-xs uppercase tracking-[0.22em] text-zinc-400">
-                Productos cargados
-              </p>
-              <p className="mt-3 text-3xl font-semibold">{products.length}</p>
-            </div>
-          </div>
-        </section> */}
-
-        <section id="categorias" className="space-y-5">
+        {/* <section id="categorias" className="space-y-5">
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
               Categorias
@@ -88,30 +84,91 @@ export default async function Home() {
               description="Cuando cargues categorias desde el panel admin, van a aparecer aca automaticamente."
             />
           )}
-        </section>
+        </section> */}
 
-        <section id="catalogo" className="space-y-5">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        {products.length > 0 ? (
+          <>
+            {Array.from(tagSections.values()).map((section, index) => (
+              <section
+                key={section.label}
+                id={index === 0 ? "catalogo" : undefined}
+                className="space-y-5"
+              >
+                <div className="space-y-2">
+                  {/* <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
+                    Etiqueta
+                  </p> */}
+                  <h2 className="text-2xl font-semibold tracking-tight">{section.label}</h2>
+                </div>
+
+                <ProductGridWithQuickView
+                  products={section.items}
+                  categoryNameById={categoryNameById}
+                />
+              </section>
+            ))}
+
+            {untaggedProducts.length > 0 ? (
+              <section
+                id={tagSections.size === 0 ? "catalogo" : undefined}
+                className="space-y-5"
+              >
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
+                    Productos
+                  </p>
+                  <h2 className="text-2xl font-semibold tracking-tight">Catalogo</h2>
+                </div>
+
+                <ProductGridWithQuickView
+                  products={untaggedProducts}
+                  categoryNameById={categoryNameById}
+                />
+              </section>
+            ) : null}
+
+            {categorySections.length > 0 ? (
+              <section className="space-y-8">
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
+                    Categorias
+                  </p>
+                  {/* <h2 className="text-2xl font-semibold tracking-tight">Explora por categoria</h2> */}
+                </div>
+
+                <div className="space-y-10">
+                  {categorySections.map((section) => (
+                    <section key={section.id} className="space-y-5">
+                      <div className="space-y-2">
+                        <h3 className="text-2xl font-semibold tracking-tight">{section.label}</h3>
+                      </div>
+
+                      <ProductGridWithQuickView
+                        products={section.items}
+                        categoryNameById={categoryNameById}
+                        fallbackCategoryName={section.label}
+                      />
+                    </section>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+          </>
+        ) : (
+          <section id="catalogo" className="space-y-5">
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
                 Productos
               </p>
-              <h2 className="text-2xl font-semibold tracking-tight">Ultimos ingresos</h2>
+              <h2 className="text-2xl font-semibold tracking-tight">Catalogo</h2>
             </div>
-          </div>
 
-          {latestProducts.length > 0 ? (
-            <ProductGridWithQuickView
-              products={latestProducts}
-              categoryNameById={categoryNameById}
-            />
-          ) : (
             <EmptyCatalogState
               title="Todavia no hay productos"
               description="Carga el primer producto desde el panel admin y se mostrara aca para los usuarios."
             />
-          )}
-        </section>
+          </section>
+        )}
       </main>
     </div>
   );

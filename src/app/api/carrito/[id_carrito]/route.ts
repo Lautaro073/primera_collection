@@ -20,11 +20,16 @@ export async function GET(_request: Request, context: RouteContext<CartParams>) 
 export async function POST(request: Request, context: RouteContext<CartParams>) {
   try {
     const { id_carrito } = await context.params;
-    const body = (await request.json()) as { id_producto?: string; cantidad?: number | string };
+    const body = (await request.json()) as {
+      id_producto?: string;
+      cantidad?: number | string;
+      medida?: string;
+    };
     const items = await addOrUpdateCartItem(
       id_carrito,
       body.id_producto || "",
-      body.cantidad ?? 0
+      body.cantidad ?? 0,
+      body.medida
     );
 
     return NextResponse.json(

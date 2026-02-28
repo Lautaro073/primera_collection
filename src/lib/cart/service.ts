@@ -35,10 +35,30 @@ function normalizeQuantity(value: number | string): number {
   return parsed;
 }
 
-function serializeCartItem(product: Product, quantity: number): SerializedCartItem {
+function normalizeSelectedMeasure(value: string | null | undefined): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalizedValue = value.trim();
+  return normalizedValue ? normalizedValue : null;
+}
+
+function getCartItemKey(productId: string, selectedMeasure: string | null): string {
+  return `${productId}::${selectedMeasure || ""}`;
+}
+
+function serializeCartItem(
+  product: Product,
+  quantity: number,
+  selectedMeasure: string | null
+): SerializedCartItem {
   return {
+    clave: getCartItemKey(product.id_producto, selectedMeasure),
     cantidad: quantity,
     id_producto: product.id_producto,
+    medida_seleccionada: selectedMeasure,
+    stock: product.stock,
     nombre: product.nombre,
     precio: product.precio,
     tag: product.tag,
@@ -50,14 +70,22 @@ function toRawCartRecord(cartId: string, data: DocumentData): RawCartRecord {
   const items = Array.isArray(data.items)
     ? data.items
         .filter(
-          (item): item is { productId?: unknown; quantity?: unknown } =>
+          (item): item is {
+            productId?: unknown;
+            quantity?: unknown;
+            selectedMeasure?: unknown;
+          } =>
             typeof item === "object" && item !== null
         )
         .map((item) => ({
           productId: typeof item.productId === "string" ? item.productId : "",
           quantity: Number(item.quantity) || 0,
+          selectedMeasure:
+            typeof item.selectedMeasure === "string"
+              ? normalizeSelectedMeasure(item.selectedMeasure)
+              : null,
         }))
-        .filter((item): item is CartItemRecord => Boolean(item.productId) && item.quantity > 0)
+        .filter((item) => Boolean(item.productId) && item.quantity > 0) as CartItemRecord[]
     : [];
 
   return {
@@ -107,7 +135,11 @@ async function enrichItems(items: CartItemRecord[] = []): Promise<SerializedCart
         return null;
       }
 
-      return serializeCartItem(product, item.quantity);
+      return serializeCartItem(
+        product,
+        item.quantity,
+        normalizeSelectedMeasure(item.selectedMeasure)
+      );
     })
   );
 
@@ -177,15 +209,31 @@ export async function getCartItems(cartId: string): Promise<SerializedCartItem[]
 export async function addOrUpdateCartItem(
   cartId: string,
   productId: string,
-  quantity: number | string
+  quantity: number | string,
+  selectedMeasure?: string | null
 ): Promise<SerializedCartItem[]> {
   const normalizedCartId = ensureCartId(cartId);
   const normalizedProductId = ensureCartId(productId);
   const normalizedQuantity = normalizeQuantity(quantity);
+  const normalizedSelectedMeasure = normalizeSelectedMeasure(selectedMeasure);
   const existingProduct = await getProductById(normalizedProductId);
 
   if (!existingProduct) {
     throw createHttpError(404, "Producto no encontrado.");
+  }
+
+  if (
+    normalizedSelectedMeasure &&
+    !existingProduct.medidas.includes(normalizedSelectedMeasure)
+  ) {
+    throw createHttpError(400, "El talle seleccionado no existe para este producto.");
+  }
+
+  if (
+    existingProduct.medidas.length > 0 &&
+    !normalizedSelectedMeasure
+  ) {
+    throw createHttpError(400, "Debes seleccionar un talle antes de agregar.");
   }
 
   const db = getFirebaseAdminDb();
@@ -195,19 +243,35 @@ export async function addOrUpdateCartItem(
     const doc = await transaction.get(ref);
     const currentData = readTransactionCartData(doc);
     const items = [...currentData.items];
+    const totalForProduct = items.reduce(
+      (total, item) =>
+        item.productId === normalizedProductId
+          ? total + item.quantity
+          : total,
+      0
+    );
+
+    if (totalForProduct + normalizedQuantity > existingProduct.stock) {
+      throw createHttpError(400, "No hay stock suficiente para este producto.");
+    }
+
     const itemIndex = items.findIndex(
-      (item) => item.productId === normalizedProductId
+      (item) =>
+        item.productId === normalizedProductId &&
+        normalizeSelectedMeasure(item.selectedMeasure) === normalizedSelectedMeasure
     );
 
     if (itemIndex >= 0) {
       items[itemIndex] = {
         ...items[itemIndex],
         quantity: items[itemIndex].quantity + normalizedQuantity,
+        selectedMeasure: normalizedSelectedMeasure || undefined,
       };
     } else {
       items.push({
         productId: normalizedProductId,
         quantity: normalizedQuantity,
+        selectedMeasure: normalizedSelectedMeasure || undefined,
       });
     }
 
@@ -228,12 +292,19 @@ export async function addOrUpdateCartItem(
 export async function replaceCartItemQuantity(
   cartId: string,
   productId: string,
-  quantity: number | string
+  quantity: number | string,
+  selectedMeasure?: string | null
 ): Promise<SerializedCartItem[]> {
   const normalizedCartId = ensureCartId(cartId);
   const normalizedProductId = ensureCartId(productId);
   const normalizedQuantity = normalizeQuantity(quantity);
+  const normalizedSelectedMeasure = normalizeSelectedMeasure(selectedMeasure);
+  const existingProduct = await getProductById(normalizedProductId);
   const db = getFirebaseAdminDb();
+
+  if (!existingProduct) {
+    throw createHttpError(404, "Producto no encontrado.");
+  }
 
   await db.runTransaction(async (transaction: Transaction) => {
     const ref = db.collection("carts").doc(normalizedCartId);
@@ -246,16 +317,31 @@ export async function replaceCartItemQuantity(
     const currentData = readTransactionCartData(doc);
     const items = [...currentData.items];
     const itemIndex = items.findIndex(
-      (item) => item.productId === normalizedProductId
+      (item) =>
+        item.productId === normalizedProductId &&
+        normalizeSelectedMeasure(item.selectedMeasure) === normalizedSelectedMeasure
     );
 
     if (itemIndex < 0) {
       throw createHttpError(404, "El producto no existe en el carrito.");
     }
 
+    const totalForOtherLines = items.reduce(
+      (total, item, index) =>
+        index !== itemIndex && item.productId === normalizedProductId
+          ? total + item.quantity
+          : total,
+      0
+    );
+
+    if (totalForOtherLines + normalizedQuantity > existingProduct.stock) {
+      throw createHttpError(400, "No hay stock suficiente para este producto.");
+    }
+
     items[itemIndex] = {
       ...items[itemIndex],
       quantity: normalizedQuantity,
+      selectedMeasure: normalizedSelectedMeasure || undefined,
     };
 
     transaction.update(ref, {
@@ -267,9 +353,14 @@ export async function replaceCartItemQuantity(
   return getCartItems(normalizedCartId);
 }
 
-export async function removeCartItem(cartId: string, productId: string): Promise<DeleteResponse> {
+export async function removeCartItem(
+  cartId: string,
+  productId: string,
+  selectedMeasure?: string | null
+): Promise<DeleteResponse> {
   const normalizedCartId = ensureCartId(cartId);
   const normalizedProductId = ensureCartId(productId);
+  const normalizedSelectedMeasure = normalizeSelectedMeasure(selectedMeasure);
   const db = getFirebaseAdminDb();
 
   await db.runTransaction(async (transaction: Transaction) => {
@@ -281,7 +372,13 @@ export async function removeCartItem(cartId: string, productId: string): Promise
     }
 
     const currentData = readTransactionCartData(doc);
-    const nextItems = currentData.items.filter((item) => item.productId !== normalizedProductId);
+    const nextItems = currentData.items.filter(
+      (item) =>
+        !(
+          item.productId === normalizedProductId &&
+          normalizeSelectedMeasure(item.selectedMeasure) === normalizedSelectedMeasure
+        )
+    );
 
     transaction.update(ref, {
       items: nextItems,

@@ -3,6 +3,7 @@
 # dependencies
 /node_modules
 /legacy-admin
+/deuda-tecnica
 /.pnp
 .pnp.*
 .yarn/*
