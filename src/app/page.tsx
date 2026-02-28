@@ -1,48 +1,118 @@
-﻿export default function Home() {
+import Link from "next/link";
+import { listAllProducts, listCategories } from "@/lib/catalog/service";
+import { CategoryPill } from "@/components/storefront/CategoryPill";
+import { EmptyCatalogState } from "@/components/storefront/EmptyCatalogState";
+import { ProductGridWithQuickView } from "@/components/storefront/ProductGridWithQuickView";
+import { StoreHeader } from "@/components/storefront/StoreHeader";
+
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const [categories, products] = await Promise.all([
+    listCategories(),
+    listAllProducts(),
+  ]);
+
+  const latestProducts = products.slice(0, 8);
+  const categoryNameById = Object.fromEntries(
+    categories.map((category) => [category.id_categoria, category.nombre_categoria])
+  );
+
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_#ffffff,_#e9f2ff_45%,_#d5e8ff)] px-6 py-16 text-zinc-900">
-      <div className="mx-auto flex max-w-4xl flex-col gap-10 rounded-3xl border border-white/70 bg-white/85 p-8 shadow-[0_20px_80px_rgba(20,50,90,0.12)] backdrop-blur">
-        <section className="space-y-4">
-          <p className="text-sm font-semibold uppercase tracking-[0.25em] text-sky-700">
-            Etapa 1
-          </p>
-          <h1 className="max-w-2xl text-4xl font-semibold tracking-tight">
-            Backend base migrado a Next.js con Firebase para catalogo.
-          </h1>
-          <p className="max-w-3xl text-base leading-7 text-zinc-600">
-            Esta etapa deja listo el backend de lectura para categorias y productos
-            usando Firestore. Auth, admin, carrito y pagos quedan para el siguiente corte.
-          </p>
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f8f8f8_0%,#ffffff_28%,#fafafa_100%)] text-black">
+      <StoreHeader />
+
+      <main className="mx-auto flex max-w-6xl flex-col gap-14 px-4 py-8 sm:px-6 sm:py-10">
+        {/* <section className="grid gap-8 rounded-[2rem] border border-zinc-200 bg-[linear-gradient(135deg,#ffffff_0%,#f6f6f6_55%,#ececec_100%)] p-6 sm:p-8 lg:grid-cols-[1.3fr_0.7fr]">
+          <div className="space-y-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500">
+              Tienda
+            </p>
+            <h1 className="max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl">
+              Catalogo limpio, rapido y listo para comprar.
+            </h1>
+            <p className="max-w-2xl text-sm leading-7 text-zinc-600 sm:text-base">
+              El backend ya esta migrado a Next y Firebase. Esta etapa deja lista
+              la experiencia publica para navegar categorias y productos.
+            </p>
+
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="#catalogo"
+                className="inline-flex rounded-full bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-zinc-800"
+              >
+                Ver destacados
+              </Link>
+              <Link
+                href="#categorias"
+                className="inline-flex rounded-full border border-zinc-300 bg-white px-5 py-3 text-sm font-medium text-black transition hover:border-black"
+              >
+                Explorar categorias
+              </Link>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+            <div className="rounded-3xl border border-zinc-200 bg-white p-5">
+              <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">
+                Categorias activas
+              </p>
+              <p className="mt-3 text-3xl font-semibold">{categories.length}</p>
+            </div>
+            <div className="rounded-3xl border border-zinc-200 bg-black p-5 text-white">
+              <p className="text-xs uppercase tracking-[0.22em] text-zinc-400">
+                Productos cargados
+              </p>
+              <p className="mt-3 text-3xl font-semibold">{products.length}</p>
+            </div>
+          </div>
+        </section> */}
+
+        <section id="categorias" className="space-y-5">
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
+              Categorias
+            </p>
+            <h2 className="text-2xl font-semibold tracking-tight">Navega por seccion</h2>
+          </div>
+
+          {categories.length > 0 ? (
+            <div className="flex flex-wrap gap-3">
+              {categories.map((category) => (
+                <CategoryPill key={category.id_categoria} category={category} />
+              ))}
+            </div>
+          ) : (
+            <EmptyCatalogState
+              title="Todavia no hay categorias"
+              description="Cuando cargues categorias desde el panel admin, van a aparecer aca automaticamente."
+            />
+          )}
         </section>
 
-        <section className="grid gap-6 md:grid-cols-2">
-          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
-            <h2 className="text-lg font-semibold">Variables a completar</h2>
-            <ul className="mt-3 space-y-2 text-sm text-zinc-600">
-              <li><code>NEXT_PUBLIC_FIREBASE_API_KEY</code></li>
-              <li><code>NEXT_PUBLIC_FIREBASE_PROJECT_ID</code></li>
-              <li><code>FIREBASE_CLIENT_EMAIL</code></li>
-              <li><code>FIREBASE_PRIVATE_KEY</code></li>
-            </ul>
+        <section id="catalogo" className="space-y-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
+                Productos
+              </p>
+              <h2 className="text-2xl font-semibold tracking-tight">Ultimos ingresos</h2>
+            </div>
           </div>
-          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
-            <h2 className="text-lg font-semibold">Rutas listas</h2>
-            <ul className="mt-3 space-y-2 text-sm text-zinc-600">
-              <li><code>/api/categorias</code></li>
-              <li><code>/api/categorias/con-productos</code></li>
-              <li><code>/api/categorias/categoria/[nombre]</code></li>
-              <li><code>/api/productos</code></li>
-              <li><code>/api/productos/all</code></li>
-              <li><code>/api/productos/search?search=</code></li>
-            </ul>
-          </div>
-        </section>
 
-        <section className="rounded-2xl border border-sky-200 bg-sky-50 p-5 text-sm leading-7 text-sky-900">
-          Nota: la busqueda de catalogo en esta etapa filtra en memoria para evitar
-          indices complejos y reducir fallos mientras se estabiliza la migracion.
+          {latestProducts.length > 0 ? (
+            <ProductGridWithQuickView
+              products={latestProducts}
+              categoryNameById={categoryNameById}
+            />
+          ) : (
+            <EmptyCatalogState
+              title="Todavia no hay productos"
+              description="Carga el primer producto desde el panel admin y se mostrara aca para los usuarios."
+            />
+          )}
         </section>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }

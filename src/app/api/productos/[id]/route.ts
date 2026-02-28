@@ -35,8 +35,8 @@ export async function PUT(request: Request, context: RouteContext<ProductParams>
   try {
     await requireAdmin(request);
     const { id } = await context.params;
-    const { payload, image } = await parseCatalogRequest(request);
-    const producto = await updateProduct(id, payload, image);
+    const { payload, images } = await parseCatalogRequest(request);
+    const producto = await updateProduct(id, payload, images);
 
     return NextResponse.json(producto);
   } catch (error: unknown) {

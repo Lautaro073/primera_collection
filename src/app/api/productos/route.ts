@@ -20,8 +20,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     await requireAdmin(request);
-    const { payload, image } = await parseCatalogRequest(request);
-    const producto = await createProduct(payload, image);
+    const { payload, images } = await parseCatalogRequest(request);
+    const producto = await createProduct(payload, images);
 
     return NextResponse.json(producto, { status: 201 });
   } catch (error: unknown) {

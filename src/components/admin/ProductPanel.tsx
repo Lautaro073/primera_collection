@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 
-import type { ChangeEvent, FormEvent } from "react";
-import { FileImage, LoaderCircle, Pencil, Plus, Save, Search, Trash2 } from "lucide-react";
+import { useRef, useState, type ChangeEvent, type DragEvent, type FormEvent } from "react";
+import { Check, FileImage, LoaderCircle, Pencil, Plus, Save, Search, Trash2 } from "lucide-react";
 import type { Product, ProductFormState, Category } from "@/types/domain";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 interface ProductPanelProps {
   categories: Category[];
@@ -33,12 +35,15 @@ interface ProductPanelProps {
   onFilterChange: (value: string) => void;
   productForm: ProductFormState;
   editingProductId: string;
-  existingProductImage: string;
-  imagePreview: string;
+  existingProductImages: string[];
+  imagePreviews: string[];
   isPending: boolean;
   productSubmitting: boolean;
-  onFieldChange: (field: keyof ProductFormState, value: string | File | null) => void;
+  onFieldChange: (field: keyof ProductFormState, value: string | File[] | null) => void;
   onImageChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  onAppendImages: (files: File[]) => void;
+  onSetPrimaryImage: (index: number) => void;
+  onClearImages: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onCancel: () => void;
   onEdit: (product: Product) => void;
@@ -53,17 +58,23 @@ export function ProductPanel({
   onFilterChange,
   productForm,
   editingProductId,
-  existingProductImage,
-  imagePreview,
+  existingProductImages,
+  imagePreviews,
   isPending,
   productSubmitting,
   onFieldChange,
   onImageChange,
+  onAppendImages,
+  onSetPrimaryImage,
+  onClearImages,
   onSubmit,
   onCancel,
   onEdit,
   onRequestDelete,
 }: ProductPanelProps) {
+  const [isDragActive, setIsDragActive] = useState(false);
+  const dragDepthRef = useRef(0);
+
   const handleTextField =
     (field: keyof ProductFormState) =>
     (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -72,6 +83,64 @@ export function ProductPanel({
 
   const categoryNameById = (categoryId: string | null) =>
     categories.find((item) => item.id_categoria === categoryId)?.nombre_categoria || "";
+  const measureLabel =
+    productForm.tipo_medida === "calzado" ? "Numeros disponibles" : "Talles disponibles";
+  const measurePlaceholder =
+    productForm.tipo_medida === "calzado"
+      ? "Ej: 38, 39, 40, 41"
+      : "Ej: S, M, L, XL";
+  const productMeasures = (product: Product) =>
+    product.medidas.length > 0 ? product.medidas.join(" | ") : "-";
+  const hasNewImages = productForm.imagenes.length > 0;
+  const hasExistingImages = existingProductImages.length > 0;
+  const visibleImages = hasNewImages ? imagePreviews : existingProductImages;
+  function isFileDrag(event: DragEvent<HTMLDivElement>): boolean {
+    return Array.from(event.dataTransfer.types).includes("Files");
+  }
+
+  function handleDragEnter(event: DragEvent<HTMLDivElement>): void {
+    if (!isFileDrag(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    dragDepthRef.current += 1;
+    setIsDragActive(true);
+  }
+
+  function handleDragOver(event: DragEvent<HTMLDivElement>): void {
+    if (!isFileDrag(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setIsDragActive(true);
+  }
+
+  function handleDragLeave(event: DragEvent<HTMLDivElement>): void {
+    if (!isFileDrag(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+
+    if (dragDepthRef.current === 0) {
+      setIsDragActive(false);
+    }
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>): void {
+    if (!isFileDrag(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    dragDepthRef.current = 0;
+    setIsDragActive(false);
+    onAppendImages(Array.from(event.dataTransfer.files));
+  }
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -168,28 +237,194 @@ export function ProductPanel({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="product-image">Imagen del Producto</Label>
-                <label className="block cursor-pointer">
-                  <span className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-zinc-100">
-                    <FileImage className="size-4" />
-                    {productForm.imagen ? "Cambiar imagen" : "Seleccionar imagen"}
-                  </span>
-                  <Input
-                    id="product-image"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={onImageChange}
-                  />
-                </label>
+                <Label htmlFor="product-measure-type">Medidas</Label>
+                <select
+                  id="product-measure-type"
+                  className="flex h-10 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-black outline-none focus-visible:border-black focus-visible:ring-1 focus-visible:ring-zinc-200"
+                  value={productForm.tipo_medida}
+                  onChange={handleTextField("tipo_medida")}
+                >
+                  <option value="none">No aplica</option>
+                  <option value="ropa">Ropa (talles)</option>
+                  <option value="calzado">Calzado (numeros)</option>
+                </select>
+              </div>
 
-                {imagePreview || existingProductImage ? (
-                  <div className="relative mt-4 overflow-hidden rounded-md border border-zinc-300">
-                    <img
-                      src={imagePreview || existingProductImage}
-                      alt="Vista previa"
-                      className="h-40 w-full object-cover"
+              {productForm.tipo_medida !== "none" ? (
+                <div className="space-y-2">
+                  <Label htmlFor="product-measures">{measureLabel}</Label>
+                  <Input
+                    id="product-measures"
+                    placeholder={measurePlaceholder}
+                    value={productForm.medidas}
+                    onChange={handleTextField("medidas")}
+                    required
+                  />
+                  <p className="text-xs text-zinc-500">
+                    Separalos con coma para guardar varias opciones.
+                  </p>
+                </div>
+              ) : null}
+
+              <div className="space-y-2">
+                <Label htmlFor="product-image">Imagen del Producto</Label>
+                <div
+                  className={cn("relative rounded-2xl", isDragActive && "z-50")}
+                  onDragOver={handleDragOver}
+                  onDragEnter={handleDragEnter}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                >
+                  {isDragActive ? (
+                    <div className="pointer-events-none fixed inset-0 z-40 bg-black/35 backdrop-blur-[1px]" />
+                  ) : null}
+
+                  <label className="block cursor-pointer">
+                    <span
+                      className={cn(
+                        "relative z-50 flex w-full flex-col gap-3 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-4 text-left transition hover:border-black hover:bg-white",
+                        isDragActive && "border-black bg-white shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
+                      )}
+                    >
+                      <span className="flex items-start gap-3">
+                        <span className="mt-0.5 inline-flex rounded-md border border-zinc-200 bg-white p-2 text-zinc-700">
+                          <FileImage className="size-4" />
+                        </span>
+                        <span className="min-w-0 space-y-1">
+                          <span className="block text-sm font-medium text-black">
+                            {isDragActive ? "Suelta las imagenes aqui" : "Galeria del producto"}
+                          </span>
+                          <span className="block text-xs leading-5 text-zinc-500">
+                            {hasNewImages
+                              ? `${productForm.imagenes.length} imagen(es) listas.`
+                              : hasExistingImages
+                                ? `Haz clic o arrastra. Si subes nuevas, reemplazan las ${existingProductImages.length} actuales.`
+                                : "Haz clic o arrastra imagenes."}
+                          </span>
+                        </span>
+                      </span>
+
+                      <span
+                        className={cn(
+                          "inline-flex w-fit rounded-md px-3 py-2 text-xs font-medium",
+                          isDragActive
+                            ? "border border-black bg-black text-white"
+                            : "border border-zinc-300 bg-white text-zinc-800"
+                        )}
+                      >
+                        {isDragActive
+                          ? "Suelta aqui"
+                          : hasNewImages
+                            ? "Agregar mas imagenes"
+                            : "Elegir imagenes"}
+                      </span>
+                    </span>
+                    <Input
+                      id="product-image"
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={onImageChange}
                     />
+                  </label>
+                </div>
+
+                {visibleImages.length > 0 ? (
+                  <div className="relative z-50 rounded-xl border border-zinc-200 bg-white p-3">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-black">
+                          {hasNewImages
+                            ? `${productForm.imagenes.length} imagen(es) nuevas`
+                            : "Galeria actual"}
+                        </p>
+                        {hasNewImages ? (
+                          <p className="text-xs text-zinc-500">La primera es la portada.</p>
+                        ) : null}
+                      </div>
+
+                      {hasNewImages ? (
+                        <TooltipProvider delayDuration={100}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="shrink-0 border-zinc-300"
+                                onClick={onClearImages}
+                              >
+                                <Trash2 />
+                                <span className="sr-only">Eliminar</span>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Eliminar</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : null}
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
+                      {visibleImages.map((image, index) =>
+                        hasNewImages ? (
+                          <button
+                            key={`${image}-${index}`}
+                            type="button"
+                            onClick={() => {
+                              if (index > 0) {
+                                onSetPrimaryImage(index);
+                              }
+                            }}
+                            disabled={index === 0}
+                            title={index === 0 ? "Portada actual" : "Usar como portada"}
+                            className={cn(
+                              "group relative overflow-hidden rounded-md border border-zinc-300 bg-zinc-50 transition",
+                              index === 0 && "border-black ring-1 ring-black",
+                              index > 0 && "hover:border-black"
+                            )}
+                          >
+                            <img
+                              src={image}
+                              alt={index === 0 ? "Portada del producto" : `Miniatura ${index + 1}`}
+                              className="aspect-square w-full object-cover"
+                            />
+                            {index === 0 ? (
+                              <>
+                                <span className="pointer-events-none absolute inset-0 ring-1 ring-black" />
+                                <span className="pointer-events-none absolute left-1.5 top-1.5 inline-flex rounded-full bg-black p-1 text-white">
+                                  <Check className="size-3" />
+                                </span>
+                              </>
+                            ) : (
+                              <span className="pointer-events-none absolute inset-0 bg-black/0 transition group-hover:bg-black/10" />
+                            )}
+                          </button>
+                        ) : (
+                          <div
+                            key={`${image}-${index}`}
+                            className={cn(
+                              "relative overflow-hidden rounded-md border border-zinc-300 bg-zinc-50",
+                              index === 0 && "border-black ring-1 ring-black"
+                            )}
+                          >
+                            <img
+                              src={image}
+                              alt={index === 0 ? "Portada actual del producto" : `Imagen ${index + 1}`}
+                              className="aspect-square w-full object-cover"
+                            />
+                            {index === 0 ? (
+                              <>
+                                <span className="pointer-events-none absolute inset-0 ring-1 ring-black" />
+                                <span className="pointer-events-none absolute left-1.5 top-1.5 inline-flex rounded-full bg-black p-1 text-white">
+                                  <Check className="size-3" />
+                                </span>
+                              </>
+                            ) : null}
+                          </div>
+                        )
+                      )}
+                    </div>
                   </div>
                 ) : null}
               </div>
@@ -242,6 +477,8 @@ export function ProductPanel({
                   <TableHead className="text-center">Precio</TableHead>
                   <TableHead className="text-center">Stock</TableHead>
                   <TableHead>Categoria</TableHead>
+                  <TableHead>Medidas</TableHead>
+                  <TableHead className="text-center">Imgs</TableHead>
                   <TableHead>Tag</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
@@ -271,6 +508,12 @@ export function ProductPanel({
                         )}
                       </TableCell>
                       <TableCell>{categoryNameById(product.id_categoria)}</TableCell>
+                      <TableCell className="text-sm text-zinc-600">
+                        {productMeasures(product)}
+                      </TableCell>
+                      <TableCell className="text-center text-sm text-zinc-600">
+                        {product.imagenes.length}
+                      </TableCell>
                       <TableCell>
                         {product.tag ? (
                           <Badge variant="outline">{product.tag}</Badge>
@@ -306,7 +549,7 @@ export function ProductPanel({
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center text-zinc-500">
+                    <TableCell colSpan={8} className="h-24 text-center text-zinc-500">
                       {productFilter ? "No hay productos que coincidan con la busqueda." : "No hay productos disponibles."}
                     </TableCell>
                   </TableRow>

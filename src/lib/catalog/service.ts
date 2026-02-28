@@ -9,6 +9,7 @@ import type {
   DeleteResponse,
   FirebaseDateLike,
   Product,
+  ProductMeasureType,
   RawCategoryRecord,
   RawProductRecord,
 } from "@/types/domain";
@@ -31,6 +32,10 @@ interface ProductInput {
   categoryId?: unknown;
   stock?: unknown;
   tag?: unknown;
+  tipo_medida?: unknown;
+  measureType?: unknown;
+  medidas?: unknown;
+  measureOptions?: unknown;
 }
 
 interface NormalizedCategoryInput {
@@ -45,6 +50,8 @@ interface NormalizedProductInput {
   categoryId?: string;
   stock?: number;
   tag?: string | null;
+  measureType?: ProductMeasureType;
+  measureOptions?: string[];
 }
 
 interface ProductImageUploadResult {
@@ -93,6 +100,31 @@ function parseNumber(value: unknown, fallback: number | null = null): number | n
 
   const parsed = Number(value);
   return Number.isNaN(parsed) ? fallback : parsed;
+}
+
+function normalizeMeasureType(value: unknown): ProductMeasureType {
+  if (value === "ropa" || value === "calzado") {
+    return value;
+  }
+
+  return "none";
+}
+
+function normalizeMeasureOptions(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => safeString(item))
+      .filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
 }
 
 function toComparableDate(value: FirebaseDateLike): number {
@@ -209,6 +241,30 @@ function normalizeProductInput(
     normalized.tag = safeString(input.tag) || null;
   }
 
+  const hasMeasureType =
+    input.tipo_medida !== undefined || input.measureType !== undefined;
+  const hasMeasureOptions =
+    input.medidas !== undefined || input.measureOptions !== undefined;
+
+  if (!partial || hasMeasureType || hasMeasureOptions) {
+    const measureType = normalizeMeasureType(
+      input.tipo_medida ?? input.measureType
+    );
+    const measureOptions = normalizeMeasureOptions(
+      input.medidas ?? input.measureOptions
+    );
+
+    if (measureType !== "none" && measureOptions.length === 0) {
+      throw createHttpError(
+        400,
+        "Debes indicar al menos una medida disponible para el producto."
+      );
+    }
+
+    normalized.measureType = measureType;
+    normalized.measureOptions = measureType === "none" ? [] : measureOptions;
+  }
+
   if (partial && Object.keys(normalized).length === 0) {
     throw createHttpError(400, "No se enviaron datos para actualizar.");
   }
@@ -241,6 +297,11 @@ function toRawCategoryRecord(id: string, data: DocumentData): RawCategoryRecord 
 }
 
 function toRawProductRecord(id: string, data: DocumentData): RawProductRecord {
+  const imageUrls = normalizeMeasureOptions(data.imageUrls);
+  const imagePaths = normalizeMeasureOptions(data.imagePaths);
+  const fallbackImageUrl = safeString(data.imageUrl);
+  const fallbackImagePath = safeString(data.imagePath);
+
   return {
     id,
     name: safeString(data.name),
@@ -249,8 +310,12 @@ function toRawProductRecord(id: string, data: DocumentData): RawProductRecord {
     categoryId: safeString(data.categoryId) || null,
     stock: parseNumber(data.stock, 0),
     tag: safeString(data.tag) || null,
-    imageUrl: safeString(data.imageUrl) || null,
-    imagePath: safeString(data.imagePath) || null,
+    measureType: normalizeMeasureType(data.measureType),
+    measureOptions: normalizeMeasureOptions(data.measureOptions),
+    imageUrl: fallbackImageUrl || imageUrls[0] || null,
+    imagePath: fallbackImagePath || imagePaths[0] || null,
+    imageUrls: imageUrls.length > 0 ? imageUrls : (fallbackImageUrl ? [fallbackImageUrl] : []),
+    imagePaths: imagePaths.length > 0 ? imagePaths : (fallbackImagePath ? [fallbackImagePath] : []),
     createdAt: readDateField(data, "createdAt"),
     updatedAt: readDateField(data, "updatedAt"),
   };
@@ -447,6 +512,14 @@ async function uploadProductImage(
   };
 }
 
+async function uploadProductImages(images: File[]): Promise<ProductImageUploadResult[]> {
+  const uploads = await Promise.all(images.map((image) => uploadProductImage(image)));
+
+  return uploads.filter(
+    (upload): upload is ProductImageUploadResult => upload !== null
+  );
+}
+
 async function deleteProductImage(imagePath: string | null): Promise<void> {
   if (!imagePath) {
     return;
@@ -484,6 +557,10 @@ async function deleteProductImage(imagePath: string | null): Promise<void> {
   }
 
   throw createHttpError(502, "No se pudo eliminar la imagen en Cloudinary.");
+}
+
+async function deleteProductImages(imagePaths: string[]): Promise<void> {
+  await Promise.all(imagePaths.map((imagePath) => deleteProductImage(imagePath)));
 }
 
 export async function listCategories(): Promise<Category[]> {
@@ -640,7 +717,7 @@ export async function getProductById(id: string): Promise<Product | null> {
 
 export async function createProduct(
   input: ProductInput,
-  image: File | null
+  images: File[]
 ): Promise<Product> {
   const db = getFirebaseAdminDb();
   const normalized = normalizeProductInput(input);
@@ -651,11 +728,14 @@ export async function createProduct(
 
   await ensureCategoryExists(normalized.categoryId);
 
-  const uploadedImage = await uploadProductImage(image);
+  const uploadedImages = await uploadProductImages(images);
   const now = new Date();
   const ref = await db.collection("products").add({
     ...normalized,
-    ...(uploadedImage || {}),
+    imageUrl: uploadedImages[0]?.imageUrl || null,
+    imagePath: uploadedImages[0]?.imagePath || null,
+    imageUrls: uploadedImages.map((image) => image.imageUrl),
+    imagePaths: uploadedImages.map((image) => image.imagePath),
     createdAt: now,
     updatedAt: now,
   });
@@ -667,7 +747,7 @@ export async function createProduct(
 export async function updateProduct(
   id: string,
   input: ProductInput,
-  image: File | null
+  images: File[]
 ): Promise<Product> {
   const db = getFirebaseAdminDb();
   const existing = await getProductDocById(id);
@@ -682,23 +762,30 @@ export async function updateProduct(
     await ensureCategoryExists(normalized.categoryId);
   }
 
-  let uploadedImage: ProductImageUploadResult | null = null;
+  let uploadedImages: ProductImageUploadResult[] = [];
 
-  if (image) {
-    uploadedImage = await uploadProductImage(image);
+  if (images.length > 0) {
+    uploadedImages = await uploadProductImages(images);
   }
 
   const updatedAt = new Date();
   const nextData = {
     ...normalized,
-    ...(uploadedImage || {}),
+    ...(uploadedImages.length > 0
+      ? {
+          imageUrl: uploadedImages[0]?.imageUrl || null,
+          imagePath: uploadedImages[0]?.imagePath || null,
+          imageUrls: uploadedImages.map((image) => image.imageUrl),
+          imagePaths: uploadedImages.map((image) => image.imagePath),
+        }
+      : {}),
     updatedAt,
   };
 
   await db.collection("products").doc(id).update(nextData);
 
-  if (uploadedImage && existing.imagePath) {
-    await deleteProductImage(existing.imagePath);
+  if (uploadedImages.length > 0) {
+    await deleteProductImages(existing.imagePaths);
   }
 
   return serializeProduct({
@@ -717,8 +804,8 @@ export async function deleteProduct(id: string): Promise<DeleteResponse> {
 
   await db.collection("products").doc(id).delete();
 
-  if (existing.imagePath) {
-    await deleteProductImage(existing.imagePath);
+  if (existing.imagePaths.length > 0) {
+    await deleteProductImages(existing.imagePaths);
   }
 
   return { deleted: true };

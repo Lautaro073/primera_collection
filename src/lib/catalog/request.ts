@@ -8,26 +8,28 @@ function isFileLike(value: unknown): value is File {
 
 export async function parseCatalogRequest(
   request: Request
-): Promise<{ payload: Record<string, unknown>; image: File | null }> {
+): Promise<{ payload: Record<string, unknown>; images: File[] }> {
   const contentType = request.headers.get("content-type") || "";
 
   if (contentType.includes("multipart/form-data")) {
     const formData = await request.formData();
     const payload: Record<string, unknown> = {};
+    const images: File[] = [];
 
     for (const [key, value] of formData.entries()) {
-      if (key === "imagen") {
+      if (key === "imagen" || key === "imagenes") {
+        if (isFileLike(value) && value.size > 0) {
+          images.push(value);
+        }
         continue;
       }
 
       payload[key] = typeof value === "string" ? value : String(value);
     }
 
-    const image = formData.get("imagen");
-
     return {
       payload,
-      image: isFileLike(image) && image.size > 0 ? image : null,
+      images,
     };
   }
 
@@ -35,6 +37,6 @@ export async function parseCatalogRequest(
 
   return {
     payload,
-    image: null,
+    images: [],
   };
 }

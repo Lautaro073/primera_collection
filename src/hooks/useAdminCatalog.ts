@@ -3,6 +3,7 @@
 import {
   useDeferredValue,
   useEffect,
+  useRef,
   useState,
   useTransition,
   type ChangeEvent,
@@ -46,6 +47,14 @@ async function parseJson<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
+function isSameFile(left: File, right: File): boolean {
+  return (
+    left.name === right.name &&
+    left.size === right.size &&
+    left.lastModified === right.lastModified
+  );
+}
+
 interface UseAdminCatalogResult {
   booting: boolean;
   activeTab: AdminTab;
@@ -60,8 +69,8 @@ interface UseAdminCatalogResult {
   setProductFilter: (value: string) => void;
   editingCategoryId: string;
   editingProductId: string;
-  existingProductImage: string;
-  imagePreview: string;
+  existingProductImages: string[];
+  imagePreviews: string[];
   isPending: boolean;
   categorySubmitting: boolean;
   productSubmitting: boolean;
@@ -73,8 +82,11 @@ interface UseAdminCatalogResult {
   categoryForm: CategoryFormState;
   productForm: ProductFormState;
   updateCategoryField: (field: keyof CategoryFormState, value: string) => void;
-  updateProductField: (field: keyof ProductFormState, value: string | File | null) => void;
+  updateProductField: (field: keyof ProductFormState, value: string | File[] | null) => void;
   handleImageChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  appendImageFiles: (files: File[]) => void;
+  setPrimarySelectedImage: (index: number) => void;
+  clearSelectedImages: () => void;
   resetCategoryForm: () => void;
   resetProductForm: () => void;
   beginCategoryEdit: (category: Category) => void;
@@ -106,7 +118,9 @@ const EMPTY_PRODUCT_FORM: ProductFormState = {
   id_categoria: "",
   stock: "",
   tag: "",
-  imagen: null,
+  tipo_medida: "none",
+  medidas: "",
+  imagenes: [],
 };
 
 export function useAdminCatalog(): UseAdminCatalogResult {
@@ -123,8 +137,9 @@ export function useAdminCatalog(): UseAdminCatalogResult {
   const deferredProductFilter = useDeferredValue(productFilter);
   const [editingCategoryId, setEditingCategoryId] = useState("");
   const [editingProductId, setEditingProductId] = useState("");
-  const [existingProductImage, setExistingProductImage] = useState("");
-  const [imagePreview, setImagePreview] = useState("");
+  const [existingProductImages, setExistingProductImages] = useState<string[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const imagePreviewsRef = useRef<string[]>([]);
   const [isPending, startTransition] = useTransition();
   const [pendingAction, setPendingAction] = useState<
     "category-submit" | "product-submit" | "logout" | null
@@ -189,12 +204,16 @@ export function useAdminCatalog(): UseAdminCatalogResult {
   }, [router]);
 
   useEffect(() => {
+    imagePreviewsRef.current = imagePreviews;
+  }, [imagePreviews]);
+
+  useEffect(() => {
     return () => {
-      if (imagePreview) {
-        URL.revokeObjectURL(imagePreview);
+      if (imagePreviewsRef.current.length > 0) {
+        imagePreviewsRef.current.forEach((preview) => URL.revokeObjectURL(preview));
       }
     };
-  }, [imagePreview]);
+  }, []);
 
   useEffect(() => {
     if (!notice) {
@@ -281,7 +300,7 @@ export function useAdminCatalog(): UseAdminCatalogResult {
 
   function updateProductField(
     field: keyof ProductFormState,
-    value: string | File | null
+    value: string | File[] | null
   ): void {
     setProductForm((current) => ({
       ...current,
@@ -290,18 +309,62 @@ export function useAdminCatalog(): UseAdminCatalogResult {
   }
 
   function clearObjectPreview(): void {
-    if (imagePreview) {
-      URL.revokeObjectURL(imagePreview);
-      setImagePreview("");
+    if (imagePreviews.length > 0) {
+      imagePreviews.forEach((preview) => URL.revokeObjectURL(preview));
+      imagePreviewsRef.current = [];
+      setImagePreviews([]);
     }
   }
 
-  function handleImageChange(event: ChangeEvent<HTMLInputElement>): void {
-    const file = event.target.files?.[0] || null;
+  function appendImageFiles(files: File[]): void {
+    const validImages = files.filter((file) => file.type.startsWith("image/"));
 
+    if (validImages.length === 0) {
+      return;
+    }
+
+    const mergedFiles = [...productForm.imagenes];
+    const nextPreviews = [...imagePreviews];
+
+    for (const file of validImages) {
+      if (mergedFiles.some((currentFile) => isSameFile(currentFile, file))) {
+        continue;
+      }
+
+      mergedFiles.push(file);
+      nextPreviews.push(URL.createObjectURL(file));
+    }
+
+    updateProductField("imagenes", mergedFiles);
+    setImagePreviews(nextPreviews);
+  }
+
+  function handleImageChange(event: ChangeEvent<HTMLInputElement>): void {
+    const files = event.target.files ? Array.from(event.target.files) : [];
+    appendImageFiles(files);
+    event.target.value = "";
+  }
+
+  function setPrimarySelectedImage(index: number): void {
+    if (index <= 0 || index >= productForm.imagenes.length || index >= imagePreviews.length) {
+      return;
+    }
+
+    const nextFiles = [...productForm.imagenes];
+    const nextPreviews = [...imagePreviews];
+    const [primaryFile] = nextFiles.splice(index, 1);
+    const [primaryPreview] = nextPreviews.splice(index, 1);
+
+    nextFiles.unshift(primaryFile);
+    nextPreviews.unshift(primaryPreview);
+
+    updateProductField("imagenes", nextFiles);
+    setImagePreviews(nextPreviews);
+  }
+
+  function clearSelectedImages(): void {
     clearObjectPreview();
-    updateProductField("imagen", file);
-    setImagePreview(file ? URL.createObjectURL(file) : "");
+    updateProductField("imagenes", []);
   }
 
   function resetCategoryForm(): void {
@@ -312,7 +375,7 @@ export function useAdminCatalog(): UseAdminCatalogResult {
   function resetProductForm(): void {
     setProductForm(EMPTY_PRODUCT_FORM);
     setEditingProductId("");
-    setExistingProductImage("");
+    setExistingProductImages([]);
     clearObjectPreview();
   }
 
@@ -356,7 +419,7 @@ export function useAdminCatalog(): UseAdminCatalogResult {
   function beginProductEdit(product: Product): void {
     setActiveTabState("products");
     setEditingProductId(product.id_producto);
-    setExistingProductImage(product.imagen || "");
+    setExistingProductImages(product.imagenes);
     setProductForm({
       nombre: product.nombre || "",
       descripcion: product.descripcion || "",
@@ -364,7 +427,9 @@ export function useAdminCatalog(): UseAdminCatalogResult {
       id_categoria: product.id_categoria || "",
       stock: String(product.stock ?? ""),
       tag: product.tag || "",
-      imagen: null,
+      tipo_medida: product.tipo_medida || "none",
+      medidas: product.medidas.join(", "),
+      imagenes: [],
     });
     clearObjectPreview();
     setSuccess("Producto cargado para editar.");
@@ -444,9 +509,11 @@ export function useAdminCatalog(): UseAdminCatalogResult {
           formData.set("id_categoria", productForm.id_categoria);
           formData.set("stock", productForm.stock);
           formData.set("tag", productForm.tag);
+          formData.set("tipo_medida", productForm.tipo_medida);
+          formData.set("medidas", productForm.medidas);
 
-          if (productForm.imagen) {
-            formData.set("imagen", productForm.imagen);
+          for (const image of productForm.imagenes) {
+            formData.append("imagenes", image);
           }
 
           const endpoint = editingProductId
@@ -593,8 +660,8 @@ export function useAdminCatalog(): UseAdminCatalogResult {
     setProductFilter,
     editingCategoryId,
     editingProductId,
-    existingProductImage,
-    imagePreview,
+    existingProductImages,
+    imagePreviews,
     isPending,
     categorySubmitting: pendingAction === "category-submit",
     productSubmitting: pendingAction === "product-submit",
@@ -608,6 +675,9 @@ export function useAdminCatalog(): UseAdminCatalogResult {
     updateCategoryField,
     updateProductField,
     handleImageChange,
+    appendImageFiles,
+    setPrimarySelectedImage,
+    clearSelectedImages,
     resetCategoryForm,
     resetProductForm,
     beginCategoryEdit,

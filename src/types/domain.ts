@@ -5,6 +5,7 @@ export interface FirebaseDateLikeObject {
 }
 
 export type FirebaseDateLike = Date | string | FirebaseDateLikeObject | null | undefined;
+export type ProductMeasureType = "none" | "ropa" | "calzado";
 
 export interface RawCategoryRecord {
   id: string;
@@ -30,8 +31,12 @@ export interface RawProductRecord {
   categoryId: string | null;
   stock: number | string | null;
   tag: string | null;
+  measureType: ProductMeasureType;
+  measureOptions: string[];
   imageUrl: string | null;
   imagePath: string | null;
+  imageUrls: string[];
+  imagePaths: string[];
   createdAt?: FirebaseDateLike;
   updatedAt?: FirebaseDateLike;
 }
@@ -45,9 +50,14 @@ export interface Product {
   id_categoria: string | null;
   stock: number;
   tag: string | null;
+  tipo_medida: ProductMeasureType;
+  medidas: string[];
   imagen: string | null;
+  imagenes: string[];
   image_url: string | null;
+  image_urls: string[];
   image_path: string | null;
+  image_paths: string[];
   created_at: string | null;
   updated_at: string | null;
 }
@@ -68,7 +78,9 @@ export interface ProductFormState {
   id_categoria: string;
   stock: string;
   tag: string;
-  imagen: File | null;
+  tipo_medida: ProductMeasureType;
+  medidas: string;
+  imagenes: File[];
 }
 
 export interface CartItemRecord {

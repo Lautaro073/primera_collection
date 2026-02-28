@@ -57,12 +57,15 @@ export default function AdminCatalogPage() {
               onFilterChange={admin.setProductFilter}
               productForm={admin.productForm}
               editingProductId={admin.editingProductId}
-              existingProductImage={admin.existingProductImage}
-              imagePreview={admin.imagePreview}
+              existingProductImages={admin.existingProductImages}
+              imagePreviews={admin.imagePreviews}
               isPending={admin.isPending}
               productSubmitting={admin.productSubmitting}
               onFieldChange={admin.updateProductField}
               onImageChange={admin.handleImageChange}
+              onAppendImages={admin.appendImageFiles}
+              onSetPrimaryImage={admin.setPrimarySelectedImage}
+              onClearImages={admin.clearSelectedImages}
               onSubmit={admin.submitProduct}
               onCancel={admin.resetProductForm}
               onEdit={admin.beginProductEdit}
