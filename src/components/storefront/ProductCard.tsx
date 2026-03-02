@@ -51,10 +51,10 @@ export function ProductCard({ product, categoryName, onSelect }: ProductCardProp
         <img
           src={product.imagen}
           alt={product.nombre}
-          className="h-full w-full object-cover"
+          className="absolute inset-0 h-full w-full object-cover"
         />
       ) : (
-        <div className="flex h-full items-center justify-center bg-[linear-gradient(135deg,#f5f5f5,#e5e5e5)] text-[10px] uppercase tracking-[0.25em] text-zinc-500 sm:text-xs">
+        <div className="absolute inset-0 flex items-center justify-center bg-[linear-gradient(135deg,#f5f5f5,#e5e5e5)] text-[10px] uppercase tracking-[0.25em] text-zinc-500 sm:text-xs">
           Sin imagen
         </div>
       )}
@@ -67,13 +67,13 @@ export function ProductCard({ product, categoryName, onSelect }: ProductCardProp
         <button
           type="button"
           onClick={() => onSelect(product)}
-          className="block w-full flex-1 text-left"
+          className="block w-full text-left"
         >
           {media}
           {details}
         </button>
       ) : (
-        <div className="flex-1">
+        <div>
           {media}
           {details}
         </div>
@@ -91,8 +91,8 @@ export function ProductCard({ product, categoryName, onSelect }: ProductCardProp
                     type="button"
                     onClick={() => setSelectedMeasure(measure)}
                     className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${selectedMeasure === measure
-                        ? "border-black bg-black text-white"
-                        : "border-zinc-300 bg-white text-black hover:border-black"
+                      ? "border-black bg-black text-white"
+                      : "border-zinc-300 bg-white text-black hover:border-black"
                       }`}
                   >
                     {measure}

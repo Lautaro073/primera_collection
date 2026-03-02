@@ -160,8 +160,8 @@ export function ProductQuickViewDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl p-0 sm:max-w-4xl">
         {product ? (
-          <div className="grid gap-0 lg:grid-cols-[1.1fr_0.9fr]">
-            <div className="border-b border-zinc-200 bg-zinc-100 p-4 lg:border-b-0 lg:border-r">
+          <div className="grid max-h-[85dvh] gap-0 overflow-y-auto sm:max-h-none sm:overflow-visible sm:grid-cols-[1.1fr_0.9fr]">
+            <div className="border-b border-zinc-200 bg-zinc-100 p-4 sm:border-b-0 sm:border-r">
               <p className="mb-3 text-xs font-medium uppercase tracking-[0.22em] text-zinc-500">
                 Imagenes
               </p>
@@ -196,7 +196,7 @@ export function ProductQuickViewDialog({
                       src={activeImage}
                       alt={product.nombre}
                       draggable={false}
-                      className="aspect-[4/5] w-full object-cover transition-transform duration-300"
+                      className="aspect-[4/3] w-full object-cover transition-transform duration-300 sm:aspect-[4/5]"
                       style={{
                         transform: `translate(${imageOffset.x}px, ${imageOffset.y}px) scale(${zoomLevel})`,
                         transformOrigin: "center center",
@@ -204,18 +204,17 @@ export function ProductQuickViewDialog({
                     />
                   </div>
                 ) : (
-                  <div className="flex aspect-[4/5] items-center justify-center bg-[linear-gradient(135deg,#f5f5f5,#e5e5e5)] text-xs uppercase tracking-[0.25em] text-zinc-500">
+                  <div className="flex aspect-[4/3] items-center justify-center bg-[linear-gradient(135deg,#f5f5f5,#e5e5e5)] text-xs uppercase tracking-[0.25em] text-zinc-500 sm:aspect-[4/5]">
                     Sin imagen
                   </div>
                 )}
 
                 {activeImage ? (
                   <div
-                    className={`absolute right-3 top-3 flex items-center gap-2 rounded-full border border-zinc-200 bg-white/92 p-1 shadow-sm backdrop-blur-sm transition-opacity duration-200 ${
-                      zoomLevel > 1
+                    className={`absolute right-3 top-3 flex items-center gap-2 rounded-full border border-zinc-200 bg-white/92 p-1 shadow-sm backdrop-blur-sm transition-opacity duration-200 ${zoomLevel > 1
                         ? "opacity-100"
                         : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
-                    }`}
+                      }`}
                   >
                     <Button
                       type="button"
@@ -319,11 +318,10 @@ export function ProductQuickViewDialog({
                         key={measure}
                         type="button"
                         onClick={() => setSelectedMeasure(measure)}
-                        className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
-                          selectedMeasure === measure
+                        className={`rounded-full border px-4 py-2 text-sm font-medium transition ${selectedMeasure === measure
                             ? "border-black bg-black text-white"
                             : "border-zinc-300 bg-white text-black hover:border-black"
-                        }`}
+                          }`}
                       >
                         {measure}
                       </button>
