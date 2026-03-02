@@ -212,8 +212,8 @@ export function ProductQuickViewDialog({
                 {activeImage ? (
                   <div
                     className={`absolute right-3 top-3 flex items-center gap-2 rounded-full border border-zinc-200 bg-white/92 p-1 shadow-sm backdrop-blur-sm transition-opacity duration-200 ${zoomLevel > 1
-                        ? "opacity-100"
-                        : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+                      ? "opacity-100"
+                      : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
                       }`}
                   >
                     <Button
@@ -287,6 +287,7 @@ export function ProductQuickViewDialog({
                 <DialogTitle className="text-3xl tracking-tight">{product.nombre}</DialogTitle>
                 <DialogDescription className="text-base font-semibold text-black">
                   {formatCurrency(product.precio)}
+                  <span className="block text-xs font-normal text-zinc-400">Precio de contado/efectivo*</span>
                 </DialogDescription>
               </DialogHeader>
 
@@ -319,8 +320,8 @@ export function ProductQuickViewDialog({
                         type="button"
                         onClick={() => setSelectedMeasure(measure)}
                         className={`rounded-full border px-4 py-2 text-sm font-medium transition ${selectedMeasure === measure
-                            ? "border-black bg-black text-white"
-                            : "border-zinc-300 bg-white text-black hover:border-black"
+                          ? "border-black bg-black text-white"
+                          : "border-zinc-300 bg-white text-black hover:border-black"
                           }`}
                       >
                         {measure}

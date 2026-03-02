@@ -27,17 +27,15 @@ export function ProductCard({ product, categoryName, onSelect }: ProductCardProp
           </p>
         ) : null}
         <h3 className="text-sm font-medium text-black sm:text-base">{product.nombre}</h3>
-        {product.descripcion ? (
-          <p className="line-clamp-2 text-xs leading-5 text-zinc-600 sm:text-sm sm:leading-6">
-            {product.descripcion}
-          </p>
-        ) : null}
       </div>
 
       <div className="flex items-center justify-between gap-3">
-        <span className="text-sm font-semibold text-black sm:text-base">
-          {formatCurrency(product.precio)}
-        </span>
+        <div>
+          <span className="text-sm font-semibold text-black sm:text-base">
+            {formatCurrency(product.precio)}
+          </span>
+          <p className="text-[10px] leading-tight text-zinc-400">Precio de contado/efectivo*</p>
+        </div>
         <span className="text-[11px] uppercase tracking-[0.18em] text-zinc-500 sm:text-xs">
           {product.stock > 0 ? `${product.stock} disponibles` : "Sin stock"}
         </span>
