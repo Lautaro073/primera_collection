@@ -6,6 +6,7 @@ E-commerce desarrollado con `Next.js`, `TypeScript`, `Firebase` y `Cloudinary`, 
 - panel admin
 - carrito persistente
 - cierre de compra por WhatsApp
+- Pasarela de pago (Proximamente)
 
 El proyecto unifica frontend y backend dentro de `Next.js App Router`, con API propia en `app/api`.
 

@@ -66,7 +66,7 @@ export default async function CategoryPage(
           <ProductGridWithQuickView
             products={products}
             fallbackCategoryName={currentCategory.nombre_categoria}
-            columnsClassName="grid gap-5 sm:grid-cols-2 xl:grid-cols-3"
+            columnsClassName="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
           />
         ) : (
           <EmptyCatalogState
@@ -95,3 +95,5 @@ export default async function CategoryPage(
     </div>
   );
 }
+
+

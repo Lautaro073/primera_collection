@@ -19,29 +19,45 @@ export function ProductCard({ product, categoryName, onSelect }: ProductCardProp
   const measureLabel = product.medidas.length > 1 ? "Talles" : "Talle";
 
   const details = (
-    <div className="space-y-3 p-4 text-left">
+    <div className="space-y-3 p-3 text-left sm:p-4">
       <div className="space-y-1">
         {categoryName ? (
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-zinc-500">
+          <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-zinc-500 sm:text-xs">
             {categoryName}
           </p>
         ) : null}
-        <h3 className="text-base font-medium text-black">{product.nombre}</h3>
+        <h3 className="text-sm font-medium text-black sm:text-base">{product.nombre}</h3>
         {product.descripcion ? (
-          <p className="line-clamp-2 text-sm leading-6 text-zinc-600">
+          <p className="line-clamp-2 text-xs leading-5 text-zinc-600 sm:text-sm sm:leading-6">
             {product.descripcion}
           </p>
         ) : null}
       </div>
 
       <div className="flex items-center justify-between gap-3">
-        <span className="text-base font-semibold text-black">
+        <span className="text-sm font-semibold text-black sm:text-base">
           {formatCurrency(product.precio)}
         </span>
-        <span className="text-xs uppercase tracking-[0.18em] text-zinc-500">
+        <span className="text-[11px] uppercase tracking-[0.18em] text-zinc-500 sm:text-xs">
           {product.stock > 0 ? `${product.stock} disponibles` : "Sin stock"}
         </span>
       </div>
+    </div>
+  );
+
+  const media = (
+    <div className="relative aspect-[4/4.2] overflow-hidden bg-zinc-100 sm:aspect-[4/4.4] lg:aspect-[4/3.9]">
+      {product.imagen ? (
+        <img
+          src={product.imagen}
+          alt={product.nombre}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <div className="flex h-full items-center justify-center bg-[linear-gradient(135deg,#f5f5f5,#e5e5e5)] text-[10px] uppercase tracking-[0.25em] text-zinc-500 sm:text-xs">
+          Sin imagen
+        </div>
+      )}
     </div>
   );
 
@@ -53,56 +69,31 @@ export function ProductCard({ product, categoryName, onSelect }: ProductCardProp
           onClick={() => onSelect(product)}
           className="block w-full flex-1 text-left"
         >
-          <div className="relative aspect-[4/5] overflow-hidden bg-zinc-100">
-            {product.imagen ? (
-              <img
-                src={product.imagen}
-                alt={product.nombre}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <div className="flex h-full items-center justify-center bg-[linear-gradient(135deg,#f5f5f5,#e5e5e5)] text-xs uppercase tracking-[0.25em] text-zinc-500">
-                Sin imagen
-              </div>
-            )}
-          </div>
+          {media}
           {details}
         </button>
       ) : (
         <div className="flex-1">
-          <div className="relative aspect-[4/5] overflow-hidden bg-zinc-100">
-            {product.imagen ? (
-              <img
-                src={product.imagen}
-                alt={product.nombre}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <div className="flex h-full items-center justify-center bg-[linear-gradient(135deg,#f5f5f5,#e5e5e5)] text-xs uppercase tracking-[0.25em] text-zinc-500">
-                Sin imagen
-              </div>
-            )}
-          </div>
+          {media}
           {details}
         </div>
       )}
 
-      <div className="mt-auto space-y-3 px-4 pb-4">
+      <div className="mt-auto space-y-3 px-3 pb-3 sm:px-4 sm:pb-4">
         {hasMeasures ? (
           <div className="space-y-3">
-            <div className="space-y-2 text-left md:flex md:items-center md:gap-3 md:space-y-0">
-              <p className="shrink-0 text-xs text-zinc-500">{measureLabel}</p>
+            <div className="min-h-[74px] space-y-2 text-left sm:flex sm:min-h-[34px] sm:items-center sm:gap-3 sm:space-y-0">
+              <p className="shrink-0 text-[11px] text-zinc-500 sm:text-xs">{measureLabel}</p>
               <div className="flex flex-wrap gap-2">
                 {product.medidas.map((measure) => (
                   <button
                     key={measure}
                     type="button"
                     onClick={() => setSelectedMeasure(measure)}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
-                      selectedMeasure === measure
+                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${selectedMeasure === measure
                         ? "border-black bg-black text-white"
                         : "border-zinc-300 bg-white text-black hover:border-black"
-                    }`}
+                      }`}
                   >
                     {measure}
                   </button>
@@ -121,7 +112,7 @@ export function ProductCard({ product, categoryName, onSelect }: ProductCardProp
           </div>
         ) : (
           <div className="space-y-3">
-            <div aria-hidden="true" className="h-[34px]" />
+            <div aria-hidden="true" className="h-[74px] sm:h-[34px]" />
             <AddToCartButton
               productId={product.id_producto}
               stock={product.stock}
@@ -133,3 +124,5 @@ export function ProductCard({ product, categoryName, onSelect }: ProductCardProp
     </article>
   );
 }
+
+
