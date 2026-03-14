@@ -342,12 +342,13 @@ export function StoreHeader() {
                   onClick={() => handleOpenProduct(product)}
                   className="flex min-w-0 flex-1 items-center gap-3 text-left"
                 >
-                  <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-zinc-100">
+                  <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-zinc-100">
                     {product.imagen ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
+                      <Image
                         src={product.imagen}
                         alt={product.nombre}
+                        fill
+                        sizes="64px"
                         className="h-full w-full object-cover"
                       />
                     ) : (

@@ -1,7 +1,6 @@
-/* eslint-disable @next/next/no-img-element */
-
 "use client";
 
+import Image from "next/image";
 import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useRef, useState, type PointerEvent } from "react";
 import { AddToCartButton } from "@/components/storefront/AddToCartButton";
@@ -192,16 +191,20 @@ export function ProductQuickViewDialog({
                         : "block w-full cursor-zoom-in"
                     }
                   >
-                    <img
-                      src={activeImage}
-                      alt={product.nombre}
-                      draggable={false}
-                      className="aspect-[4/3] w-full object-cover transition-transform duration-300 sm:aspect-[4/5]"
-                      style={{
-                        transform: `translate(${imageOffset.x}px, ${imageOffset.y}px) scale(${zoomLevel})`,
-                        transformOrigin: "center center",
-                      }}
-                    />
+                    <div className="relative aspect-[4/3] w-full sm:aspect-[4/5]">
+                      <Image
+                        src={activeImage}
+                        alt={product.nombre}
+                        fill
+                        sizes="(max-width: 639px) 100vw, 50vw"
+                        draggable={false}
+                        className="object-cover transition-transform duration-300"
+                        style={{
+                          transform: `translate(${imageOffset.x}px, ${imageOffset.y}px) scale(${zoomLevel})`,
+                          transformOrigin: "center center",
+                        }}
+                      />
+                    </div>
                   </div>
                 ) : (
                   <div className="flex aspect-[4/3] items-center justify-center bg-[linear-gradient(135deg,#f5f5f5,#e5e5e5)] text-xs uppercase tracking-[0.25em] text-zinc-500 sm:aspect-[4/5]">
@@ -265,12 +268,16 @@ export function ProductQuickViewDialog({
                       }}
                       className={`overflow-hidden rounded-xl border ${index === activeImageIndex ? "border-black" : "border-zinc-200"}`}
                     >
-                      <img
-                        src={image}
-                        alt={`${product.nombre} ${index + 1}`}
-                        draggable={false}
-                        className="aspect-square w-full object-cover"
-                      />
+                      <div className="relative aspect-square w-full">
+                        <Image
+                          src={image}
+                          alt={`${product.nombre} ${index + 1}`}
+                          fill
+                          sizes="96px"
+                          draggable={false}
+                          className="object-cover"
+                        />
+                      </div>
                     </button>
                   ))}
                 </div>

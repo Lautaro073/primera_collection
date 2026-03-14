@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import type { DocumentData } from "firebase-admin/firestore";
+import { revalidateTag, unstable_cache } from "next/cache";
 import { createHttpError } from "@/lib/api/errors";
 import { getFirebaseAdminDb } from "@/lib/firebase/admin";
 import { serializeCategory, serializeProduct } from "@/lib/catalog/serializers";
@@ -85,6 +86,15 @@ interface ProductListOptions {
   offset?: number;
 }
 
+const CATEGORY_CACHE_TAG = "catalog:categories";
+const PRODUCT_CACHE_TAG = "catalog:products";
+const CATALOG_REVALIDATE_SECONDS = 300;
+
+function revalidateCatalogCache(): void {
+  revalidateTag(CATEGORY_CACHE_TAG, "max");
+  revalidateTag(PRODUCT_CACHE_TAG, "max");
+}
+
 function safeString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -161,6 +171,14 @@ function slugify(value: unknown): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function normalizeLimit(limit: number | undefined, fallback: number): number {
+  if (!Number.isFinite(limit) || !limit || limit < 1) {
+    return fallback;
+  }
+
+  return Math.trunc(limit);
 }
 
 function normalizeCategoryInput(input: CategoryInput): NormalizedCategoryInput {
@@ -338,12 +356,30 @@ async function readCollection<T extends RawCategoryRecord | RawProductRecord>(
   });
 }
 
+const readCategoriesRawCached = unstable_cache(
+  async (): Promise<RawCategoryRecord[]> => readCollection<RawCategoryRecord>("categories"),
+  ["catalog-categories-raw"],
+  {
+    revalidate: CATALOG_REVALIDATE_SECONDS,
+    tags: [CATEGORY_CACHE_TAG],
+  }
+);
+
+const readProductsRawCached = unstable_cache(
+  async (): Promise<RawProductRecord[]> => readCollection<RawProductRecord>("products"),
+  ["catalog-products-raw"],
+  {
+    revalidate: CATALOG_REVALIDATE_SECONDS,
+    tags: [PRODUCT_CACHE_TAG],
+  }
+);
+
 async function readCategoriesRaw(): Promise<RawCategoryRecord[]> {
-  return readCollection<RawCategoryRecord>("categories");
+  return readCategoriesRawCached();
 }
 
 async function readProductsRaw(): Promise<RawProductRecord[]> {
-  return readCollection<RawProductRecord>("products");
+  return readProductsRawCached();
 }
 
 async function getCategoryRawByIdentifier(identifier: string): Promise<RawCategoryRecord | null> {
@@ -572,7 +608,7 @@ export async function listCategories(): Promise<Category[]> {
 }
 
 export async function getCategoryById(id: string): Promise<Category | null> {
-  const category = await getCategoryDocById(id);
+  const category = (await readCategoriesRaw()).find((item) => item.id === id) ?? null;
   return category ? serializeCategory(category) : null;
 }
 
@@ -590,6 +626,7 @@ export async function createCategory(input: CategoryInput): Promise<Category> {
   });
 
   const created = await ref.get();
+  revalidateCatalogCache();
   return serializeCategory(toRawCategoryRecord(created.id, created.data() ?? {}));
 }
 
@@ -617,6 +654,7 @@ export async function updateCategory(
     updatedAt,
   });
 
+  revalidateCatalogCache();
   return serializeCategory({
     ...existing,
     ...normalized,
@@ -645,6 +683,7 @@ export async function deleteCategory(id: string): Promise<DeleteResponse> {
   }
 
   await db.collection("categories").doc(id).delete();
+  revalidateCatalogCache();
   return { deleted: true };
 }
 
@@ -661,6 +700,16 @@ export async function getCategoryProductsByName(
   return sortByCreatedAtDesc(
     products.filter((product) => product.categoryId === category.id)
   ).map(serializeProduct);
+}
+
+export async function listProductsByCategoryId(categoryId: string): Promise<Product[]> {
+  if (!categoryId) {
+    return [];
+  }
+
+  return sortByCreatedAtDesc(await readProductsRaw())
+    .filter((product) => product.categoryId === categoryId)
+    .map(serializeProduct);
 }
 
 export async function listCategoriesWithProducts(): Promise<CategoryWithProducts[]> {
@@ -689,8 +738,8 @@ export async function listProducts(
   { limit = 15, offset = 0 }: ProductListOptions = {}
 ): Promise<Product[]> {
   const products = sortByCreatedAtDesc(await readProductsRaw());
-  const normalizedOffset = Number.isFinite(offset) && offset > 0 ? offset : 0;
-  const normalizedLimit = Number.isFinite(limit) && limit > 0 ? limit : 15;
+  const normalizedOffset = Number.isFinite(offset) && offset > 0 ? Math.trunc(offset) : 0;
+  const normalizedLimit = normalizeLimit(limit, 15);
 
   return products
     .slice(normalizedOffset, normalizedOffset + normalizedLimit)
@@ -699,6 +748,23 @@ export async function listProducts(
 
 export async function listAllProducts(): Promise<Product[]> {
   return sortByCreatedAtDesc(await readProductsRaw()).map(serializeProduct);
+}
+
+export async function listRelatedProducts(
+  productId: string,
+  categoryId: string | null,
+  limit = 4
+): Promise<Product[]> {
+  if (!categoryId) {
+    return [];
+  }
+
+  const normalizedLimit = normalizeLimit(limit, 4);
+
+  return sortByCreatedAtDesc(await readProductsRaw())
+    .filter((product) => product.categoryId === categoryId && product.id !== productId)
+    .slice(0, normalizedLimit)
+    .map(serializeProduct);
 }
 
 export async function searchProducts(term: string): Promise<Product[]> {
@@ -711,7 +777,7 @@ export async function searchProducts(term: string): Promise<Product[]> {
 }
 
 export async function getProductById(id: string): Promise<Product | null> {
-  const product = await getProductDocById(id);
+  const product = (await readProductsRaw()).find((item) => item.id === id) ?? null;
   return product ? serializeProduct(product) : null;
 }
 
@@ -741,6 +807,7 @@ export async function createProduct(
   });
 
   const created = await ref.get();
+  revalidateCatalogCache();
   return serializeProduct(toRawProductRecord(created.id, created.data() ?? {}));
 }
 
@@ -788,6 +855,7 @@ export async function updateProduct(
     await deleteProductImages(existing.imagePaths);
   }
 
+  revalidateCatalogCache();
   return serializeProduct({
     ...existing,
     ...nextData,
@@ -808,6 +876,7 @@ export async function deleteProduct(id: string): Promise<DeleteResponse> {
     await deleteProductImages(existing.imagePaths);
   }
 
+  revalidateCatalogCache();
   return { deleted: true };
 }
 

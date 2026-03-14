@@ -1,7 +1,6 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element */
-
+import Image from "next/image";
 import { useState } from "react";
 import { AddToCartButton } from "@/components/storefront/AddToCartButton";
 import type { Product } from "@/types/domain";
@@ -46,9 +45,11 @@ export function ProductCard({ product, categoryName, onSelect }: ProductCardProp
   const media = (
     <div className="relative aspect-[4/4.2] overflow-hidden bg-zinc-100 sm:aspect-[4/4.4] lg:aspect-[4/3.9]">
       {product.imagen ? (
-        <img
+        <Image
           src={product.imagen}
           alt={product.nombre}
+          fill
+          sizes="(max-width: 639px) 58vw, (max-width: 1023px) 32vw, (max-width: 1279px) 18rem, 18rem"
           className="absolute inset-0 h-full w-full object-cover"
         />
       ) : (

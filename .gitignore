@@ -4,6 +4,7 @@
 /node_modules
 /legacy-admin
 /deuda-tecnica
+/docs
 /.pnp
 .pnp.*
 .yarn/*
