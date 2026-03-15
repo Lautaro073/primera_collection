@@ -5,6 +5,7 @@ import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useRef, useState, type PointerEvent } from "react";
 import { AddToCartButton } from "@/components/storefront/AddToCartButton";
 import type { Product } from "@/types/domain";
+import { isCloudinaryImageUrl, storefrontImageLoader } from "@/lib/images";
 import { formatCurrency } from "@/lib/storefront";
 import { Button } from "@/components/ui/button";
 import {
@@ -196,6 +197,7 @@ export function ProductQuickViewDialog({
                         src={activeImage}
                         alt={product.nombre}
                         fill
+                        loader={isCloudinaryImageUrl(activeImage) ? storefrontImageLoader : undefined}
                         sizes="(max-width: 639px) 100vw, 50vw"
                         draggable={false}
                         className="object-cover transition-transform duration-300"
@@ -273,6 +275,7 @@ export function ProductQuickViewDialog({
                           src={image}
                           alt={`${product.nombre} ${index + 1}`}
                           fill
+                          loader={isCloudinaryImageUrl(image) ? storefrontImageLoader : undefined}
                           sizes="96px"
                           draggable={false}
                           className="object-cover"
@@ -294,7 +297,7 @@ export function ProductQuickViewDialog({
                 <DialogTitle className="text-3xl tracking-tight">{product.nombre}</DialogTitle>
                 <DialogDescription className="text-base font-semibold text-black">
                   {formatCurrency(product.precio)}
-                  <span className="block text-xs font-normal text-zinc-400">Precio de contado/efectivo*</span>
+                  <span className="block text-xs font-normal text-zinc-500">Precio de contado/efectivo*</span>
                 </DialogDescription>
               </DialogHeader>
 

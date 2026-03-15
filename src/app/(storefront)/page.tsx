@@ -24,9 +24,10 @@ export default async function Home() {
     listAllProducts(),
   ]);
 
-  const categoryNameById = Object.fromEntries(
-    categories.map((category) => [category.id_categoria, category.nombre_categoria])
-  );
+  const categoryNameById = categories.reduce<Record<string, string>>((accumulator, category) => {
+    accumulator[category.id_categoria] = category.nombre_categoria;
+    return accumulator;
+  }, {});
   const tagSections = new Map<string, ProductTagSection>();
   const productsByCategoryId = new Map<string, Product[]>();
   const untaggedProducts: Product[] = [];

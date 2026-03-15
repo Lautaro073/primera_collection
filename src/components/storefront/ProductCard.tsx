@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { AddToCartButton } from "@/components/storefront/AddToCartButton";
 import type { Product } from "@/types/domain";
+import { isCloudinaryImageUrl, storefrontImageLoader } from "@/lib/images";
 import { formatCurrency } from "@/lib/storefront";
 
 interface ProductCardProps {
@@ -16,6 +17,9 @@ export function ProductCard({ product, categoryName, onSelect }: ProductCardProp
   const [selectedMeasure, setSelectedMeasure] = useState("");
   const hasMeasures = product.medidas.length > 0;
   const measureLabel = product.medidas.length > 1 ? "Talles" : "Talle";
+  const imageLoader = isCloudinaryImageUrl(product.imagen)
+    ? storefrontImageLoader
+    : undefined;
 
   const details = (
     <div className="space-y-3 p-3 text-left sm:p-4">
@@ -33,7 +37,7 @@ export function ProductCard({ product, categoryName, onSelect }: ProductCardProp
           <span className="text-sm font-semibold text-black sm:text-base">
             {formatCurrency(product.precio)}
           </span>
-          <p className="text-[10px] leading-tight text-zinc-400">Precio de contado/efectivo*</p>
+          <p className="text-[10px] leading-tight text-zinc-500">Precio de contado/efectivo*</p>
         </div>
         <span className="text-[11px] uppercase tracking-[0.18em] text-zinc-500 sm:text-xs">
           {product.stock > 0 ? `${product.stock} disponibles` : "Sin stock"}
@@ -49,6 +53,7 @@ export function ProductCard({ product, categoryName, onSelect }: ProductCardProp
           src={product.imagen}
           alt={product.nombre}
           fill
+          loader={imageLoader}
           sizes="(max-width: 639px) 58vw, (max-width: 1023px) 32vw, (max-width: 1279px) 18rem, 18rem"
           className="absolute inset-0 h-full w-full object-cover"
         />

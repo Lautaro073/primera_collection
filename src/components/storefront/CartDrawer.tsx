@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Minus, Plus, ShoppingBag, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useStoreCart } from "@/components/storefront/StoreCartProvider";
+import { isCloudinaryImageUrl, storefrontImageLoader } from "@/lib/images";
 import { formatCurrency } from "@/lib/storefront";
 import { Button } from "@/components/ui/button";
 
@@ -162,6 +163,7 @@ export function CartDrawer() {
                               src={item.imagen}
                               alt={item.nombre}
                               fill
+                              loader={isCloudinaryImageUrl(item.imagen) ? storefrontImageLoader : undefined}
                               sizes="64px"
                               className="h-full w-full object-cover"
                               draggable={false}

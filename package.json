@@ -9,6 +9,20 @@
         "lint": "eslint",
         "admin:grant": "node --env-file=.env.local --import tsx scripts/set-admin-claim.ts"
     },
+    "browserslist": {
+        "production": [
+            "chrome >= 111",
+            "edge >= 111",
+            "firefox >= 115",
+            "safari >= 16.4",
+            "ios_saf >= 16.4"
+        ],
+        "development": [
+            "last 1 chrome version",
+            "last 1 firefox version",
+            "last 1 safari version"
+        ]
+    },
     "dependencies": {
         "@radix-ui/react-dialog": "^1.1.15",
         "@radix-ui/react-label": "^2.1.8",

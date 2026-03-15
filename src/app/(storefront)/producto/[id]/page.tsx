@@ -6,6 +6,7 @@ import { Breadcrumbs } from "@/components/storefront/Breadcrumbs";
 import { ProductCard } from "@/components/storefront/ProductCard";
 import { ProductPurchasePanel } from "@/components/storefront/ProductPurchasePanel";
 import { StoreHeader } from "@/components/storefront/StoreHeader";
+import { getCloudinaryOptimizedImageUrl, isCloudinaryImageUrl } from "@/lib/images";
 import {
   getProductById,
   listAllProducts,
@@ -110,7 +111,11 @@ export default async function ProductPage(
             {product.imagen ? (
               <div className="relative aspect-[4/5] w-full">
                 <Image
-                  src={product.imagen}
+                  src={
+                    isCloudinaryImageUrl(product.imagen)
+                      ? getCloudinaryOptimizedImageUrl(product.imagen, 1280)
+                      : product.imagen
+                  }
                   alt={product.nombre}
                   fill
                   priority

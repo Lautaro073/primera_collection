@@ -99,6 +99,10 @@ interface ProductListOptions {
   offset?: number;
 }
 
+interface SearchProductsOptions {
+  limit?: number;
+}
+
 const CATEGORY_CACHE_TAG = "catalog:categories";
 const PRODUCT_CACHE_TAG = "catalog:products";
 const CATALOG_REVALIDATE_SECONDS = 300;
@@ -836,12 +840,22 @@ export async function listRelatedProducts(
     .map(serializeProduct);
 }
 
-export async function searchProducts(term: string): Promise<Product[]> {
+export async function searchProducts(
+  term: string,
+  { limit = 6 }: SearchProductsOptions = {}
+): Promise<Product[]> {
   const normalizedTerm = normalizeText(term);
+
+  if (normalizedTerm.length < 2) {
+    return [];
+  }
+
+  const normalizedLimit = normalizeLimit(limit, 6);
   const products = sortByCreatedAtDesc(await readProductsRaw());
 
   return products
     .filter((product) => normalizeText(product.name).includes(normalizedTerm))
+    .slice(0, normalizedLimit)
     .map(serializeProduct);
 }
 
