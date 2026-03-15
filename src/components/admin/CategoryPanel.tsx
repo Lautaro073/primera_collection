@@ -55,12 +55,23 @@ export function CategoryPanel({
       <div className="lg:col-span-1">
         <Card className="overflow-hidden rounded-md border-zinc-300 shadow-none">
           <CardHeader className="border-b border-zinc-200 pb-4">
-            <CardTitle>
-              {editingCategoryId ? "Actualizar Categoria" : "Agregar Categoria"}
-            </CardTitle>
-            <CardDescription>
-              Carga manual de categorias.
-            </CardDescription>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle>
+                  {editingCategoryId ? "Actualizar Categoria" : "Agregar Categoria"}
+                </CardTitle>
+                <CardDescription>
+                  Carga manual de categorias.
+                </CardDescription>
+              </div>
+
+              {editingCategoryId ? (
+                <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={onCancel}>
+                  <Plus />
+                  Volver a agregar
+                </Button>
+              ) : null}
+            </div>
           </CardHeader>
 
           <form onSubmit={onSubmit}>
@@ -85,7 +96,8 @@ export function CategoryPanel({
                     {categorySubmitting ? "Guardando..." : "Guardar Cambios"}
                   </Button>
                   <Button className="w-full" variant="outline" type="button" onClick={onCancel}>
-                    Cancelar
+                    <Plus />
+                    Volver a agregar
                   </Button>
                 </>
               ) : (

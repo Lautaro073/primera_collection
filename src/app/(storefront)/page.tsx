@@ -1,11 +1,10 @@
 import { listAllProducts, listCategories } from "@/lib/catalog/service";
-import { CategoryPill } from "@/components/storefront/CategoryPill";
 import { EmptyCatalogState } from "@/components/storefront/EmptyCatalogState";
 import { ProductGridWithQuickView } from "@/components/storefront/ProductGridWithQuickView";
 import { StoreHeader } from "@/components/storefront/StoreHeader";
 import type { Product } from "@/types/domain";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 interface ProductTagSection {
   label: string;
@@ -29,17 +28,16 @@ export default async function Home() {
     categories.map((category) => [category.id_categoria, category.nombre_categoria])
   );
   const tagSections = new Map<string, ProductTagSection>();
+  const productsByCategoryId = new Map<string, Product[]>();
   const untaggedProducts: Product[] = [];
-  const categorySections: ProductCategorySection[] = categories
-    .map((category) => ({
-      id: category.id_categoria,
-      anchorId: `categoria-${category.slug || category.id_categoria}`,
-      label: category.nombre_categoria,
-      items: products.filter((product) => product.id_categoria === category.id_categoria),
-    }))
-    .filter((section) => section.items.length > 0);
 
   for (const product of products) {
+    if (product.id_categoria) {
+      const categoryProducts = productsByCategoryId.get(product.id_categoria) || [];
+      categoryProducts.push(product);
+      productsByCategoryId.set(product.id_categoria, categoryProducts);
+    }
+
     const tag = typeof product.tag === "string" ? product.tag.trim() : "";
 
     if (!tag) {
@@ -60,6 +58,15 @@ export default async function Home() {
       items: [product],
     });
   }
+
+  const categorySections: ProductCategorySection[] = categories
+    .map((category) => ({
+      id: category.id_categoria,
+      anchorId: `categoria-${category.slug || category.id_categoria}`,
+      label: category.nombre_categoria,
+      items: productsByCategoryId.get(category.id_categoria) || [],
+    }))
+    .filter((section) => section.items.length > 0);
 
   return (
     <div
@@ -113,24 +120,7 @@ export default async function Home() {
               </section>
             ))}
 
-            {untaggedProducts.length > 0 ? (
-              <section
-                id={tagSections.size === 0 ? "catalogo" : undefined}
-                className="space-y-5"
-              >
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
-                    Productos
-                  </p>
-                  <h2 className="text-2xl font-semibold tracking-tight">Catalogo</h2>
-                </div>
 
-                <ProductGridWithQuickView
-                  products={untaggedProducts}
-                  categoryNameById={categoryNameById}
-                />
-              </section>
-            ) : null}
 
             {categorySections.length > 0 ? (
               <section className="space-y-8">
@@ -174,6 +164,24 @@ export default async function Home() {
             />
           </section>
         )}
+        {untaggedProducts.length > 0 ? (
+          <section
+            id={tagSections.size === 0 ? "catalogo" : undefined}
+            className="space-y-5"
+          >
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
+                Productos
+              </p>
+              <h2 className="text-2xl font-semibold tracking-tight">Catalogo</h2>
+            </div>
+
+            <ProductGridWithQuickView
+              products={untaggedProducts}
+              categoryNameById={categoryNameById}
+            />
+          </section>
+        ) : null}
       </main>
     </div>
   );

@@ -3,6 +3,7 @@
 import {
   useDeferredValue,
   useEffect,
+  useMemo,
   useRef,
   useState,
   useTransition,
@@ -16,12 +17,22 @@ import type {
   Category,
   CategoryFormState,
   ErrorResponseBody,
+  ProductImageAsset,
   Product,
   ProductFormState,
 } from "@/types/domain";
 import { isErrorWithMessage, isRecord } from "@/types/shared";
+import {
+  MAX_PRODUCT_IMAGE_COUNT,
+  MAX_PRODUCT_IMAGE_SIZE_BYTES,
+} from "@/lib/catalog/constants";
 import { getFirebaseClientAuth } from "@/lib/firebase/auth";
-import { authorizedFetch, getAdminSession } from "@/lib/admin/client";
+import {
+  authorizedFetch,
+  clearAdminSession,
+  getAdminSession,
+  persistAdminSession,
+} from "@/lib/admin/client";
 
 function normalizeText(value: string): string {
   return value.trim().toLowerCase();
@@ -41,6 +52,61 @@ function isCategoryArray(payload: unknown): payload is Category[] {
 
 function isProductArray(payload: unknown): payload is Product[] {
   return Array.isArray(payload);
+}
+
+function isCategory(payload: unknown): payload is Category {
+  return isRecord(payload) && typeof payload.id_categoria === "string";
+}
+
+function isProduct(payload: unknown): payload is Product {
+  return isRecord(payload) && typeof payload.id_producto === "string";
+}
+
+function isAdminCatalogPayload(
+  payload: unknown
+): payload is { categories: Category[]; products: Product[] } {
+  return (
+    isRecord(payload) &&
+    isCategoryArray(payload.categories) &&
+    isProductArray(payload.products)
+  );
+}
+
+function toTimestamp(value: string | null): number {
+  if (!value) {
+    return 0;
+  }
+
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function sortCategories(categories: Category[]): Category[] {
+  return [...categories].sort((left, right) =>
+    left.nombre_categoria.localeCompare(right.nombre_categoria, "es")
+  );
+}
+
+function sortProducts(products: Product[]): Product[] {
+  return [...products].sort(
+    (left, right) =>
+      toTimestamp(right.updated_at ?? right.created_at) -
+      toTimestamp(left.updated_at ?? left.created_at)
+  );
+}
+
+function upsertCategory(categories: Category[], nextCategory: Category): Category[] {
+  const withoutCurrent = categories.filter(
+    (category) => category.id_categoria !== nextCategory.id_categoria
+  );
+  return sortCategories([...withoutCurrent, nextCategory]);
+}
+
+function upsertProduct(products: Product[], nextProduct: Product): Product[] {
+  const withoutCurrent = products.filter(
+    (product) => product.id_producto !== nextProduct.id_producto
+  );
+  return sortProducts([...withoutCurrent, nextProduct]);
 }
 
 async function parseJson<T>(response: Response): Promise<T> {
@@ -69,7 +135,7 @@ interface UseAdminCatalogResult {
   setProductFilter: (value: string) => void;
   editingCategoryId: string;
   editingProductId: string;
-  existingProductImages: string[];
+  existingProductImages: ProductImageAsset[];
   imagePreviews: string[];
   isPending: boolean;
   categorySubmitting: boolean;
@@ -86,6 +152,8 @@ interface UseAdminCatalogResult {
   handleImageChange: (event: ChangeEvent<HTMLInputElement>) => void;
   appendImageFiles: (files: File[]) => void;
   setPrimarySelectedImage: (index: number) => void;
+  setPrimaryExistingImage: (index: number) => void;
+  removeExistingImage: (index: number) => void;
   clearSelectedImages: () => void;
   resetCategoryForm: () => void;
   resetProductForm: () => void;
@@ -137,9 +205,11 @@ export function useAdminCatalog(): UseAdminCatalogResult {
   const deferredProductFilter = useDeferredValue(productFilter);
   const [editingCategoryId, setEditingCategoryId] = useState("");
   const [editingProductId, setEditingProductId] = useState("");
-  const [existingProductImages, setExistingProductImages] = useState<string[]>([]);
+  const [existingProductImages, setExistingProductImages] = useState<ProductImageAsset[]>([]);
+  const [existingImagesMarkedForRemoval, setExistingImagesMarkedForRemoval] = useState(false);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const imagePreviewsRef = useRef<string[]>([]);
+  const loadedUserIdRef = useRef("");
   const [isPending, startTransition] = useTransition();
   const [pendingAction, setPendingAction] = useState<
     "category-submit" | "product-submit" | "logout" | null
@@ -162,6 +232,7 @@ export function useAdminCatalog(): UseAdminCatalogResult {
 
           unsubscribe = onIdTokenChanged(authInstance, async (user) => {
             if (!user) {
+              loadedUserIdRef.current = "";
               router.replace("/admin/login");
               return;
             }
@@ -169,21 +240,26 @@ export function useAdminCatalog(): UseAdminCatalogResult {
             const session = await getAdminSession(authInstance, user);
 
             if (!session) {
+              loadedUserIdRef.current = "";
               await signOut(authInstance);
               router.replace("/admin/login");
               return;
             }
 
             setSessionEmail(session.user.email || "admin");
+            await persistAdminSession(session.user);
 
-            try {
-              await loadCatalog(authInstance);
-            } catch (currentError: unknown) {
-              setFailure(
-                isErrorWithMessage(currentError)
-                  ? currentError.message
-                  : "No se pudo cargar el catalogo."
-              );
+            if (loadedUserIdRef.current !== session.user.uid) {
+              try {
+                await loadCatalog(authInstance);
+                loadedUserIdRef.current = session.user.uid;
+              } catch (currentError: unknown) {
+                setFailure(
+                  isErrorWithMessage(currentError)
+                    ? currentError.message
+                    : "No se pudo cargar el catalogo."
+                );
+              }
             }
 
             setBooting(false);
@@ -236,40 +312,21 @@ export function useAdminCatalog(): UseAdminCatalogResult {
 
     setError("");
 
-    const [categoriesResponse, productsResponse] = await Promise.all([
-      authorizedFetch(resolvedAuth, "/api/categorias"),
-      authorizedFetch(resolvedAuth, "/api/productos/all"),
-    ]);
+    const response = await authorizedFetch(resolvedAuth, "/api/admin/catalog");
+    const payload = await parseJson<
+      { categories: Category[]; products: Product[] } | ErrorResponseBody
+    >(response);
 
-    const [categoriesPayload, productsPayload] = await Promise.all([
-      parseJson<Category[] | ErrorResponseBody>(categoriesResponse),
-      parseJson<Product[] | ErrorResponseBody>(productsResponse),
-    ]);
-
-    if (!categoriesResponse.ok) {
-      throw new Error(
-        getResponseErrorMessage(
-          categoriesPayload,
-          "No se pudieron cargar las categorias."
-        )
-      );
+    if (!response.ok) {
+      throw new Error(getResponseErrorMessage(payload, "No se pudo cargar el catalogo."));
     }
 
-    if (!productsResponse.ok) {
-      throw new Error(
-        getResponseErrorMessage(
-          productsPayload,
-          "No se pudieron cargar los productos."
-        )
-      );
-    }
-
-    if (!isCategoryArray(categoriesPayload) || !isProductArray(productsPayload)) {
+    if (!isAdminCatalogPayload(payload)) {
       throw new Error("La API devolvio un formato invalido.");
     }
 
-    setCategories(categoriesPayload);
-    setProducts(productsPayload);
+    setCategories(sortCategories(payload.categories));
+    setProducts(sortProducts(payload.products));
   }
 
   function setSuccess(message: string): void {
@@ -323,6 +380,11 @@ export function useAdminCatalog(): UseAdminCatalogResult {
       return;
     }
 
+    if (validImages.some((file) => file.size > MAX_PRODUCT_IMAGE_SIZE_BYTES)) {
+      setFailure("Cada imagen debe pesar como maximo 8 MB.");
+      return;
+    }
+
     const mergedFiles = [...productForm.imagenes];
     const nextPreviews = [...imagePreviews];
 
@@ -333,6 +395,16 @@ export function useAdminCatalog(): UseAdminCatalogResult {
 
       mergedFiles.push(file);
       nextPreviews.push(URL.createObjectURL(file));
+    }
+
+    if (mergedFiles.length > MAX_PRODUCT_IMAGE_COUNT) {
+      nextPreviews.forEach((preview) => {
+        if (!imagePreviews.includes(preview)) {
+          URL.revokeObjectURL(preview);
+        }
+      });
+      setFailure(`Solo puedes subir hasta ${MAX_PRODUCT_IMAGE_COUNT} imagenes por producto.`);
+      return;
     }
 
     updateProductField("imagenes", mergedFiles);
@@ -362,7 +434,39 @@ export function useAdminCatalog(): UseAdminCatalogResult {
     setImagePreviews(nextPreviews);
   }
 
+  function setPrimaryExistingImage(index: number): void {
+    if (index <= 0 || index >= existingProductImages.length) {
+      return;
+    }
+
+    setExistingProductImages((current) => {
+      const nextImages = [...current];
+      const [primaryImage] = nextImages.splice(index, 1);
+      nextImages.unshift(primaryImage);
+      return nextImages;
+    });
+    setExistingImagesMarkedForRemoval(false);
+  }
+
+  function removeExistingImage(index: number): void {
+    if (index < 0 || index >= existingProductImages.length) {
+      return;
+    }
+
+    setExistingProductImages((current) => {
+      const nextImages = current.filter((_, currentIndex) => currentIndex !== index);
+      setExistingImagesMarkedForRemoval(nextImages.length === 0);
+      return nextImages;
+    });
+  }
+
   function clearSelectedImages(): void {
+    if (productForm.imagenes.length === 0 && existingProductImages.length > 0) {
+      setExistingProductImages([]);
+      setExistingImagesMarkedForRemoval(true);
+      return;
+    }
+
     clearObjectPreview();
     updateProductField("imagenes", []);
   }
@@ -376,6 +480,7 @@ export function useAdminCatalog(): UseAdminCatalogResult {
     setProductForm(EMPTY_PRODUCT_FORM);
     setEditingProductId("");
     setExistingProductImages([]);
+    setExistingImagesMarkedForRemoval(false);
     clearObjectPreview();
   }
 
@@ -419,7 +524,17 @@ export function useAdminCatalog(): UseAdminCatalogResult {
   function beginProductEdit(product: Product): void {
     setActiveTabState("products");
     setEditingProductId(product.id_producto);
-    setExistingProductImages(product.imagenes);
+    setExistingProductImages(
+      product.imagenes.length > 0
+        ? product.imagenes.map((url, index) => ({
+            url,
+            path: product.image_paths[index] || null,
+          }))
+        : product.imagen
+          ? [{ url: product.imagen, path: product.image_path || null }]
+          : []
+    );
+    setExistingImagesMarkedForRemoval(false);
     setProductForm({
       nombre: product.nombre || "",
       descripcion: product.descripcion || "",
@@ -469,9 +584,13 @@ export function useAdminCatalog(): UseAdminCatalogResult {
             );
           }
 
+          if (!isCategory(payload)) {
+            throw new Error("La API devolvio una categoria invalida.");
+          }
+
           const wasEditing = Boolean(editingCategoryId);
           resetCategoryForm();
-          await loadCatalog(auth);
+          setCategories((current) => upsertCategory(current, payload));
           setSuccess(
             wasEditing
               ? "Categoria actualizada correctamente."
@@ -511,6 +630,11 @@ export function useAdminCatalog(): UseAdminCatalogResult {
           formData.set("tag", productForm.tag);
           formData.set("tipo_medida", productForm.tipo_medida);
           formData.set("medidas", productForm.medidas);
+          formData.set(
+            "clear_existing_images",
+            existingImagesMarkedForRemoval ? "true" : "false"
+          );
+          formData.set("existing_images", JSON.stringify(existingProductImages));
 
           for (const image of productForm.imagenes) {
             formData.append("imagenes", image);
@@ -533,9 +657,13 @@ export function useAdminCatalog(): UseAdminCatalogResult {
             );
           }
 
+          if (!isProduct(payload)) {
+            throw new Error("La API devolvio un producto invalido.");
+          }
+
           const wasEditing = Boolean(editingProductId);
           resetProductForm();
-          await loadCatalog(auth);
+          setProducts((current) => upsertProduct(current, payload));
           setSuccess(
             wasEditing
               ? "Producto actualizado correctamente."
@@ -594,7 +722,16 @@ export function useAdminCatalog(): UseAdminCatalogResult {
             resetProductForm();
           }
 
-          await loadCatalog(auth);
+          if (currentTarget.kind === "category") {
+            setCategories((current) =>
+              current.filter((category) => category.id_categoria !== currentTarget.id)
+            );
+          } else {
+            setProducts((current) =>
+              current.filter((product) => product.id_producto !== currentTarget.id)
+            );
+          }
+
           setDeleteTarget(null);
           setSuccess(
             currentTarget.kind === "category"
@@ -626,6 +763,8 @@ export function useAdminCatalog(): UseAdminCatalogResult {
     startTransition(() => {
       void (async () => {
         try {
+          loadedUserIdRef.current = "";
+          await clearAdminSession();
           await signOut(auth);
           router.replace("/admin/login");
         } finally {
@@ -642,8 +781,12 @@ export function useAdminCatalog(): UseAdminCatalogResult {
   }
 
   const normalizedFilter = normalizeText(deferredProductFilter);
-  const filteredProducts = products.filter((product) =>
-    normalizeText(product.nombre).includes(normalizedFilter)
+  const filteredProducts = useMemo(
+    () =>
+      products.filter((product) =>
+        normalizeText(product.nombre).includes(normalizedFilter)
+      ),
+    [normalizedFilter, products]
   );
 
   return {
@@ -677,6 +820,8 @@ export function useAdminCatalog(): UseAdminCatalogResult {
     handleImageChange,
     appendImageFiles,
     setPrimarySelectedImage,
+    setPrimaryExistingImage,
+    removeExistingImage,
     clearSelectedImages,
     resetCategoryForm,
     resetProductForm,

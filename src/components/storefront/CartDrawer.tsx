@@ -1,9 +1,8 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element */
-
+import Image from "next/image";
 import { Minus, Plus, ShoppingBag, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStoreCart } from "@/components/storefront/StoreCartProvider";
 import { formatCurrency } from "@/lib/storefront";
 import { Button } from "@/components/ui/button";
@@ -21,12 +20,14 @@ export function CartDrawer() {
   } = useStoreCart();
   const [error, setError] = useState("");
   const whatsappPhone = (process.env.NEXT_PUBLIC_WHATSAPP_PHONE ?? "").replace(/\D/g, "");
-  const quantityByProduct = items.reduce<Record<string, number>>((totals, item) => {
-    return {
-      ...totals,
-      [item.id_producto]: (totals[item.id_producto] || 0) + item.cantidad,
-    };
-  }, {});
+  const quantityByProduct = useMemo(
+    () =>
+      items.reduce<Record<string, number>>((totals, item) => {
+        totals[item.id_producto] = (totals[item.id_producto] || 0) + item.cantidad;
+        return totals;
+      }, {}),
+    [items]
+  );
 
   function buildWhatsappMessage(): string {
     const lines = items.map((item) => {
@@ -111,15 +112,13 @@ export function CartDrawer() {
       <div
         aria-hidden={!isDrawerOpen}
         onClick={closeDrawer}
-        className={`fixed inset-0 z-40 bg-black/35 transition-opacity duration-300 ${
-          isDrawerOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
-        }`}
+        className={`fixed inset-0 z-40 bg-black/35 transition-opacity duration-300 ${isDrawerOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+          }`}
       />
 
       <aside
-        className={`fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l border-zinc-200 bg-white shadow-[-20px_0_80px_rgba(0,0,0,0.12)] transition-transform duration-300 ${
-          isDrawerOpen ? "translate-x-0" : "translate-x-full"
-        }`}
+        className={`fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l border-zinc-200 bg-white shadow-[-20px_0_80px_rgba(0,0,0,0.12)] transition-transform duration-300 ${isDrawerOpen ? "translate-x-0" : "translate-x-full"
+          }`}
       >
         <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-4 sm:px-5">
           <div>
@@ -156,92 +155,94 @@ export function CartDrawer() {
                     const canIncreaseQuantity = productQuantityInCart < item.stock;
 
                     return (
-                  <div className="flex gap-3">
-                    <div className="h-20 w-16 shrink-0 overflow-hidden rounded-xl bg-white">
-                      {item.imagen ? (
-                        <img
-                          src={item.imagen}
-                          alt={item.nombre}
-                          className="h-full w-full object-cover"
-                          draggable={false}
-                        />
-                      ) : (
-                        <div className="flex h-full items-center justify-center bg-zinc-100 text-[10px] uppercase tracking-[0.18em] text-zinc-400">
-                          Sin
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="min-w-0 flex-1 space-y-3">
-                      <div className="space-y-1">
-                        <h3 className="truncate text-sm font-medium text-black">
-                          {item.nombre}
-                        </h3>
-                        {item.medida_seleccionada ? (
-                          <p className="text-xs text-zinc-500">
-                            Talle: {item.medida_seleccionada}
-                          </p>
-                        ) : null}
-                        <p className="text-sm font-semibold text-black">
-                          {formatCurrency(item.precio)}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-white p-1">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="size-8 rounded-full"
-                            onClick={() =>
-                              void handleQuantityChange(
-                                item.id_producto,
-                                item.cantidad - 1,
-                                item.medida_seleccionada
-                              )
-                            }
-                            disabled={isLoading}
-                          >
-                            <Minus />
-                            <span className="sr-only">Restar unidad</span>
-                          </Button>
-                          <span className="min-w-7 text-center text-sm font-medium text-black">
-                            {item.cantidad}
-                          </span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="size-8 rounded-full"
-                            onClick={() =>
-                              void handleQuantityChange(
-                                item.id_producto,
-                                item.cantidad + 1,
-                                item.medida_seleccionada
-                              )
-                            }
-                            disabled={isLoading || !canIncreaseQuantity}
-                          >
-                            <Plus />
-                            <span className="sr-only">Sumar unidad</span>
-                          </Button>
+                      <div className="flex gap-3">
+                        <div className="relative h-20 w-16 shrink-0 overflow-hidden rounded-xl bg-white">
+                          {item.imagen ? (
+                            <Image
+                              src={item.imagen}
+                              alt={item.nombre}
+                              fill
+                              sizes="64px"
+                              className="h-full w-full object-cover"
+                              draggable={false}
+                            />
+                          ) : (
+                            <div className="flex h-full items-center justify-center bg-zinc-100 text-[10px] uppercase tracking-[0.18em] text-zinc-400">
+                              Sin
+                            </div>
+                          )}
                         </div>
 
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          className="h-8 px-2 text-xs text-zinc-500 hover:text-black"
-                          onClick={() =>
-                            void handleRemove(item.id_producto, item.medida_seleccionada)
-                          }
-                          disabled={isLoading}
-                        >
-                          Quitar
-                        </Button>
+                        <div className="min-w-0 flex-1 space-y-3">
+                          <div className="space-y-1">
+                            <h3 className="truncate text-sm font-medium text-black">
+                              {item.nombre}
+                            </h3>
+                            {item.medida_seleccionada ? (
+                              <p className="text-xs text-zinc-500">
+                                Talle: {item.medida_seleccionada}
+                              </p>
+                            ) : null}
+                            <p className="text-sm font-semibold text-black">
+                              {formatCurrency(item.precio)}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-white p-1">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="size-8 rounded-full"
+                                onClick={() =>
+                                  void handleQuantityChange(
+                                    item.id_producto,
+                                    item.cantidad - 1,
+                                    item.medida_seleccionada
+                                  )
+                                }
+                                disabled={isLoading}
+                              >
+                                <Minus />
+                                <span className="sr-only">Restar unidad</span>
+                              </Button>
+                              <span className="min-w-7 text-center text-sm font-medium text-black">
+                                {item.cantidad}
+                              </span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="size-8 rounded-full"
+                                onClick={() =>
+                                  void handleQuantityChange(
+                                    item.id_producto,
+                                    item.cantidad + 1,
+                                    item.medida_seleccionada
+                                  )
+                                }
+                                disabled={isLoading || !canIncreaseQuantity}
+                              >
+                                <Plus />
+                                <span className="sr-only">Sumar unidad</span>
+                              </Button>
+                            </div>
+
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="h-8 px-2 text-xs text-zinc-500 hover:text-black"
+                              onClick={() =>
+                                void handleRemove(item.id_producto, item.medida_seleccionada)
+                              }
+                              disabled={isLoading}
+                            >
+                              Quitar
+                            </Button>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
                     );
                   })()}
                 </article>
@@ -268,7 +269,7 @@ export function CartDrawer() {
 
           {items.length > 0 ? (
             <div className="mb-4 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm text-zinc-600">
-Al momento de pedir el link de pago se le notificara la disponibilidad del Talle.
+              Al momento de pedir el link de pago se le notificara la disponibilidad del Talle.
             </div>
           ) : null}
 
@@ -279,7 +280,7 @@ Al momento de pedir el link de pago se le notificara la disponibilidad del Talle
               onClick={handleWhatsappCheckout}
               disabled={items.length === 0 || !whatsappPhone}
             >
-              Finalizar por WhatsApp
+              Finalizar Compra por WhatsApp
             </Button>
 
             <Button type="button" variant="outline" className="w-full" onClick={closeDrawer}>

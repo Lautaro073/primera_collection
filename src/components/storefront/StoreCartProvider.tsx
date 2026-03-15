@@ -31,6 +31,7 @@ interface CartSessionResponse {
 interface StoreCartContextValue {
   cartId: string;
   items: SerializedCartItem[];
+  getProductQuantity: (productId: string) => number;
   itemCount: number;
   totalAmount: number;
   isReady: boolean;
@@ -315,10 +316,21 @@ export function StoreCartProvider({ children }: StoreCartProviderProps) {
     [cartId]
   );
 
+  const quantityByProductId = useMemo<Record<string, number>>(() => {
+    const quantities: Record<string, number> = {};
+
+    for (const item of items) {
+      quantities[item.id_producto] = (quantities[item.id_producto] || 0) + item.cantidad;
+    }
+
+    return quantities;
+  }, [items]);
+
   const value = useMemo<StoreCartContextValue>(
     () => ({
       cartId,
       items,
+      getProductQuantity: (productId: string) => quantityByProductId[productId] || 0,
       itemCount: items.reduce((total, item) => total + item.cantidad, 0),
       totalAmount: items.reduce(
         (total, item) => total + item.precio * item.cantidad,
@@ -368,6 +380,7 @@ export function StoreCartProvider({ children }: StoreCartProviderProps) {
       isReady,
       items,
       openDrawer,
+      quantityByProductId,
       removeItem,
       updateItemQuantity,
     ]

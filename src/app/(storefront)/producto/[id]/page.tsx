@@ -1,29 +1,81 @@
-/* eslint-disable @next/next/no-img-element */
-
+import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Breadcrumbs } from "@/components/storefront/Breadcrumbs";
 import { ProductCard } from "@/components/storefront/ProductCard";
 import { ProductPurchasePanel } from "@/components/storefront/ProductPurchasePanel";
 import { StoreHeader } from "@/components/storefront/StoreHeader";
-import { getProductById, listAllProducts, listCategories } from "@/lib/catalog/service";
-import { formatCurrency, getCategoryHref } from "@/lib/storefront";
+import {
+  getProductById,
+  listAllProducts,
+  listCategories,
+  listRelatedProducts,
+} from "@/lib/catalog/service";
+import { formatCurrency, getCategoryHref, getProductHref } from "@/lib/storefront";
 import type { RouteContext } from "@/types/next";
 
 interface ProductPageParams {
   id: string;
 }
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
+
+export async function generateStaticParams(): Promise<ProductPageParams[]> {
+  const products = await listAllProducts();
+
+  return products.map((product) => ({
+    id: product.id_producto,
+  }));
+}
+
+export async function generateMetadata(
+  context: RouteContext<ProductPageParams>
+): Promise<Metadata> {
+  const { id } = await context.params;
+  const product = await getProductById(id);
+
+  if (!product) {
+    return {
+      title: "Producto | De Primera Collection",
+    };
+  }
+
+  const title = `${product.nombre} | De Primera Collection`;
+  const description =
+    product.descripcion ||
+    `Consulta ${product.nombre} en De Primera Collection. Revisa precio, stock y talle disponible.`;
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: getProductHref(product),
+    },
+    openGraph: {
+      title,
+      description,
+      url: getProductHref(product),
+      type: "website",
+      images: product.imagen
+        ? [
+            {
+              url: product.imagen,
+              alt: product.nombre,
+            },
+          ]
+        : undefined,
+    },
+  };
+}
 
 export default async function ProductPage(
   context: RouteContext<ProductPageParams>
 ) {
   const { id } = await context.params;
-  const [product, categories, allProducts] = await Promise.all([
+  const [product, categories] = await Promise.all([
     getProductById(id),
     listCategories(),
-    listAllProducts(),
   ]);
 
   if (!product) {
@@ -32,10 +84,11 @@ export default async function ProductPage(
 
   const category =
     categories.find((item) => item.id_categoria === product.id_categoria) || null;
-  const relatedProducts = allProducts
-    .filter((item) => item.id_producto !== product.id_producto)
-    .filter((item) => item.id_categoria === product.id_categoria)
-    .slice(0, 4);
+  const relatedProducts = await listRelatedProducts(
+    product.id_producto,
+    product.id_categoria,
+    4
+  );
 
   return (
     <div className="min-h-screen bg-zinc-50 text-black">
@@ -55,11 +108,16 @@ export default async function ProductPage(
         <section className="grid gap-8 rounded-[2rem] border border-zinc-200 bg-white p-6 sm:p-8 lg:grid-cols-2">
           <div className="overflow-hidden rounded-3xl border border-zinc-200 bg-zinc-100">
             {product.imagen ? (
-              <img
-                src={product.imagen}
-                alt={product.nombre}
-                className="aspect-[4/5] w-full object-cover"
-              />
+              <div className="relative aspect-[4/5] w-full">
+                <Image
+                  src={product.imagen}
+                  alt={product.nombre}
+                  fill
+                  priority
+                  sizes="(max-width: 1023px) 100vw, 50vw"
+                  className="object-cover"
+                />
+              </div>
             ) : (
               <div className="flex aspect-[4/5] items-center justify-center bg-[linear-gradient(135deg,#f5f5f5,#e5e5e5)] text-xs uppercase tracking-[0.25em] text-zinc-500">
                 Sin imagen

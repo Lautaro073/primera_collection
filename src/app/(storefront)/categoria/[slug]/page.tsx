@@ -1,10 +1,11 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Breadcrumbs } from "@/components/storefront/Breadcrumbs";
 import { EmptyCatalogState } from "@/components/storefront/EmptyCatalogState";
 import { ProductGridWithQuickView } from "@/components/storefront/ProductGridWithQuickView";
 import { StoreHeader } from "@/components/storefront/StoreHeader";
-import { getCategoryProductsByName, listCategories } from "@/lib/catalog/service";
+import { listCategories, listProductsByCategoryId } from "@/lib/catalog/service";
 import { getCategoryHref } from "@/lib/storefront";
 import type { RouteContext } from "@/types/next";
 
@@ -12,27 +13,73 @@ interface CategoryPageParams {
   slug: string;
 }
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
+
+async function resolveCategory(slug: string) {
+  const categories = await listCategories();
+  const decodedSlug = decodeURIComponent(slug).toLowerCase();
+  const currentCategory =
+    categories.find((category) => category.slug === slug) ||
+    categories.find(
+      (category) => category.nombre_categoria.toLowerCase() === decodedSlug
+    ) ||
+    null;
+
+  return {
+    categories,
+    currentCategory,
+  };
+}
+
+export async function generateStaticParams(): Promise<CategoryPageParams[]> {
+  const categories = await listCategories();
+
+  return categories.map((category) => ({
+    slug: category.slug || category.nombre_categoria,
+  }));
+}
+
+export async function generateMetadata(
+  context: RouteContext<CategoryPageParams>
+): Promise<Metadata> {
+  const { slug } = await context.params;
+  const { currentCategory } = await resolveCategory(slug);
+
+  if (!currentCategory) {
+    return {
+      title: "Categoria | De Primera Collection",
+    };
+  }
+
+  const title = `${currentCategory.nombre_categoria} | De Primera Collection`;
+  const description = `Explora ${currentCategory.nombre_categoria} en De Primera Collection. Mira precios, stock y productos disponibles de esta categoria.`;
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: getCategoryHref(currentCategory),
+    },
+    openGraph: {
+      title,
+      description,
+      url: getCategoryHref(currentCategory),
+      type: "website",
+    },
+  };
+}
 
 export default async function CategoryPage(
   context: RouteContext<CategoryPageParams>
 ) {
   const { slug } = await context.params;
-  const [categories, products] = await Promise.all([
-    listCategories(),
-    getCategoryProductsByName(slug),
-  ]);
+  const { categories, currentCategory } = await resolveCategory(slug);
 
-  const currentCategory =
-    categories.find((category) => category.slug === slug) ||
-    categories.find(
-      (category) => category.nombre_categoria.toLowerCase() === decodeURIComponent(slug).toLowerCase()
-    ) ||
-    null;
-
-  if (!currentCategory || products === null) {
+  if (!currentCategory) {
     notFound();
   }
+
+  const products = await listProductsByCategoryId(currentCategory.id_categoria);
 
   const relatedCategories = categories.filter(
     (category) => category.id_categoria !== currentCategory.id_categoria

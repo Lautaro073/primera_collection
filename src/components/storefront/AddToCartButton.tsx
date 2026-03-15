@@ -28,14 +28,10 @@ export function AddToCartButton({
   onAdded,
   className,
 }: AddToCartButtonProps) {
-  const { addItem, isReady, items } = useStoreCart();
+  const { addItem, getProductQuantity, isReady } = useStoreCart();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const missingMeasure = requiresMeasure && !selectedMeasure;
-  const quantityInCart = items.reduce(
-    (total, item) =>
-      item.id_producto === productId ? total + item.cantidad : total,
-    0
-  );
+  const quantityInCart = getProductQuantity(productId);
   const stockReached = stock > 0 && quantityInCart >= stock;
   const disabledReason = !isReady
     ? "Preparando carrito..."

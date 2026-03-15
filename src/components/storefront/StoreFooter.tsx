@@ -5,7 +5,7 @@ import {
   MessageCircle,
   type LucideIcon,
 } from "lucide-react";
-import { listCategoriesWithProducts } from "@/lib/catalog/service";
+import { listCategories } from "@/lib/catalog/service";
 
 function normalizeWhatsappLink(phone: string): string | null {
   const normalizedPhone = phone.replace(/\D/g, "");
@@ -71,7 +71,7 @@ export async function StoreFooter() {
   const whatsappUrl = normalizeWhatsappLink(
     process.env.NEXT_PUBLIC_WHATSAPP_PHONE?.trim() || ""
   );
-  const categories = await listCategoriesWithProducts();
+  const categories = await listCategories();
 
   const shopLinks: FooterLink[] = [
     { href: "/#inicio", label: "Inicio" },
