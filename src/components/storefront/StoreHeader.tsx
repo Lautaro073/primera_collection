@@ -1,17 +1,30 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useDeferredValue, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { LoaderCircle, Plus, Search, ShoppingBag, X } from "lucide-react";
-import { CartDrawer } from "@/components/storefront/CartDrawer";
-import { ProductQuickViewDialog } from "@/components/storefront/ProductQuickViewDialog";
 import { useStoreCart } from "@/components/storefront/StoreCartProvider";
 import type { Product } from "@/types/domain";
+import { isCloudinaryImageUrl, storefrontImageLoader } from "@/lib/images";
 import { formatCurrency } from "@/lib/storefront";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+
+const CartDrawer = dynamic(
+  () => import("@/components/storefront/CartDrawer").then((module) => module.CartDrawer),
+  { ssr: false }
+);
+
+const ProductQuickViewDialog = dynamic(
+  () =>
+    import("@/components/storefront/ProductQuickViewDialog").then(
+      (module) => module.ProductQuickViewDialog
+    ),
+  { ssr: false }
+);
 
 function isProduct(value: unknown): value is Product {
   return (
@@ -41,7 +54,7 @@ function getSearchError(payload: unknown): string {
 }
 
 export function StoreHeader() {
-  const { addItem, itemCount, totalAmount, openDrawer } = useStoreCart();
+  const { addItem, isDrawerOpen, itemCount, totalAmount, openDrawer } = useStoreCart();
   const cartButtonRef = useRef<HTMLSpanElement | null>(null);
   const desktopSearchContainerRef = useRef<HTMLDivElement | null>(null);
   const mobileSearchContainerRef = useRef<HTMLDivElement | null>(null);
@@ -123,7 +136,7 @@ export function StoreHeader() {
 
         try {
           const response = await fetch(
-            `/api/productos/search?search=${encodeURIComponent(term)}`,
+            `/api/productos/search?search=${encodeURIComponent(term)}&limit=6`,
             {
               signal: controller.signal,
               credentials: "same-origin",
@@ -348,6 +361,7 @@ export function StoreHeader() {
                         src={product.imagen}
                         alt={product.nombre}
                         fill
+                        loader={isCloudinaryImageUrl(product.imagen) ? storefrontImageLoader : undefined}
                         sizes="64px"
                         className="h-full w-full object-cover"
                       />
@@ -417,8 +431,10 @@ export function StoreHeader() {
                 alt="De Primera Collection"
                 width={80}
                 height={80}
+                sizes="80px"
                 className="size-16 rounded-3xl border border-zinc-200 object-cover shadow-sm sm:size-20"
                 priority
+                fetchPriority="high"
               />
               <span className="sr-only">De Primera Collection</span>
             </Link>
@@ -491,16 +507,18 @@ export function StoreHeader() {
         </Button>
       </div>
 
-      <ProductQuickViewDialog
-        product={activeProduct}
-        open={Boolean(activeProduct)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setActiveProduct(null);
-          }
-        }}
-      />
-      <CartDrawer />
+      {activeProduct ? (
+        <ProductQuickViewDialog
+          product={activeProduct}
+          open={Boolean(activeProduct)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setActiveProduct(null);
+            }
+          }}
+        />
+      ) : null}
+      {isDrawerOpen ? <CartDrawer /> : null}
     </>
   );
 }

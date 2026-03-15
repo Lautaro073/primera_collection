@@ -116,7 +116,7 @@ export async function StoreFooter() {
             <p className="max-w-xl text-sm leading-6 text-zinc-600">
               Catalogo online con compra rapida por WhatsApp.
             </p>
-            <p className="text-xs text-zinc-400">
+            <p className="text-xs text-zinc-500">
               Pedidos, consultas y confirmacion final por WhatsApp.
             </p>
           </div>
