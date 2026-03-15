@@ -77,28 +77,6 @@ export default async function Home() {
       <StoreHeader />
 
       <main className="mx-auto flex max-w-6xl flex-col gap-14 px-4 py-8 sm:px-6 sm:py-10">
-        {/* <section id="categorias" className="space-y-5">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
-              Categorias
-            </p>
-            <h2 className="text-2xl font-semibold tracking-tight">Navega por seccion</h2>
-          </div>
-
-          {categories.length > 0 ? (
-            <div className="flex flex-wrap gap-3">
-              {categories.map((category) => (
-                <CategoryPill key={category.id_categoria} category={category} />
-              ))}
-            </div>
-          ) : (
-            <EmptyCatalogState
-              title="Todavia no hay categorias"
-              description="Cuando cargues categorias desde el panel admin, van a aparecer aca automaticamente."
-            />
-          )}
-        </section> */}
-
         {products.length > 0 ? (
           <>
             {Array.from(tagSections.values()).map((section, index) => (
@@ -108,9 +86,6 @@ export default async function Home() {
                 className="space-y-5"
               >
                 <div className="space-y-2">
-                  {/* <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
-                    Etiqueta
-                  </p> */}
                   <h2 className="text-2xl font-semibold tracking-tight">{section.label}</h2>
                 </div>
 
@@ -129,7 +104,6 @@ export default async function Home() {
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
                     Categorias
                   </p>
-                  {/* <h2 className="text-2xl font-semibold tracking-tight">Explora por categoria</h2> */}
                 </div>
 
                 <div className="space-y-10">

@@ -1,11 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Product } from "@/types/domain";
 import { ProductCard } from "@/components/storefront/ProductCard";
-import { ProductQuickViewDialog } from "@/components/storefront/ProductQuickViewDialog";
 import { cn } from "@/lib/utils";
+
+const ProductQuickViewDialog = dynamic(
+  () =>
+    import("@/components/storefront/ProductQuickViewDialog").then(
+      (module) => module.ProductQuickViewDialog
+    ),
+  { ssr: false }
+);
 
 interface ProductGridWithQuickViewProps {
   products: Product[];
@@ -232,24 +240,24 @@ export function ProductGridWithQuickView({
         </button>
       </div>
 
-      <ProductQuickViewDialog
-        key={selectedProduct?.id_producto || "quick-view-empty"}
-        product={selectedProduct}
-        categoryName={
-          selectedProduct
-            ? fallbackCategoryName ||
+      {selectedProduct ? (
+        <ProductQuickViewDialog
+          key={selectedProduct.id_producto}
+          product={selectedProduct}
+          categoryName={
+            fallbackCategoryName ||
             (selectedProduct.id_categoria
               ? categoryNameById?.[selectedProduct.id_categoria]
               : undefined)
-            : undefined
-        }
-        open={Boolean(selectedProduct)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedProductId("");
           }
-        }}
-      />
+          open={Boolean(selectedProduct)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedProductId("");
+            }
+          }}
+        />
+      ) : null}
     </>
   );
 }

@@ -36,7 +36,7 @@ export function getCloudinaryOptimizedImageUrl(
   const normalizedQuality =
     typeof quality === "number" && Number.isFinite(quality)
       ? `q_${Math.min(100, Math.max(1, Math.round(quality)))}`
-      : "q_auto:good";
+      : "q_auto:eco";
   const transformations = ["f_auto", normalizedQuality, "c_limit", `w_${normalizedWidth}`];
 
   return src.replace("/upload/", `/upload/${transformations.join(",")}/`);
