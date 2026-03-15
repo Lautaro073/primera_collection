@@ -362,6 +362,7 @@ export function StoreHeader() {
                         alt={product.nombre}
                         fill
                         loader={isCloudinaryImageUrl(product.imagen) ? storefrontImageLoader : undefined}
+                        quality={55}
                         sizes="64px"
                         className="h-full w-full object-cover"
                       />

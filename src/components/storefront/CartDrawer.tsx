@@ -164,6 +164,7 @@ export function CartDrawer() {
                               alt={item.nombre}
                               fill
                               loader={isCloudinaryImageUrl(item.imagen) ? storefrontImageLoader : undefined}
+                              quality={50}
                               sizes="64px"
                               className="h-full w-full object-cover"
                               draggable={false}

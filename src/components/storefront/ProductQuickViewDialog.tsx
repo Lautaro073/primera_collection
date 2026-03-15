@@ -198,6 +198,7 @@ export function ProductQuickViewDialog({
                         alt={product.nombre}
                         fill
                         loader={isCloudinaryImageUrl(activeImage) ? storefrontImageLoader : undefined}
+                        quality={75}
                         sizes="(max-width: 639px) 100vw, 50vw"
                         draggable={false}
                         className="object-cover transition-transform duration-300"
@@ -276,6 +277,7 @@ export function ProductQuickViewDialog({
                           alt={`${product.nombre} ${index + 1}`}
                           fill
                           loader={isCloudinaryImageUrl(image) ? storefrontImageLoader : undefined}
+                          quality={50}
                           sizes="96px"
                           draggable={false}
                           className="object-cover"

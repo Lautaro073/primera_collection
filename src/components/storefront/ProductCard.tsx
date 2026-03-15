@@ -54,6 +54,7 @@ export function ProductCard({ product, categoryName, onSelect }: ProductCardProp
           alt={product.nombre}
           fill
           loader={imageLoader}
+          quality={60}
           sizes="(max-width: 639px) 58vw, (max-width: 1023px) 32vw, (max-width: 1279px) 18rem, 18rem"
           className="absolute inset-0 h-full w-full object-cover"
         />
