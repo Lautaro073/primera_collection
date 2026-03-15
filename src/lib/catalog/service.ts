@@ -2,6 +2,10 @@ import crypto from "node:crypto";
 import type { DocumentData } from "firebase-admin/firestore";
 import { revalidateTag, unstable_cache } from "next/cache";
 import { createHttpError } from "@/lib/api/errors";
+import {
+  MAX_PRODUCT_IMAGE_COUNT,
+  MAX_PRODUCT_IMAGE_SIZE_BYTES,
+} from "@/lib/catalog/constants";
 import { getFirebaseAdminDb } from "@/lib/firebase/admin";
 import { serializeCategory, serializeProduct } from "@/lib/catalog/serializers";
 import type {
@@ -37,6 +41,15 @@ interface ProductInput {
   measureType?: unknown;
   medidas?: unknown;
   measureOptions?: unknown;
+  existing_images?: unknown;
+  existingImages?: unknown;
+  clear_existing_images?: unknown;
+  clearExistingImages?: unknown;
+}
+
+interface ExistingProductImageInput {
+  url: string;
+  path: string | null;
 }
 
 interface NormalizedCategoryInput {
@@ -110,6 +123,51 @@ function parseNumber(value: unknown, fallback: number | null = null): number | n
 
   const parsed = Number(value);
   return Number.isNaN(parsed) ? fallback : parsed;
+}
+
+function parseBoolean(value: unknown): boolean {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    return normalized === "true" || normalized === "1" || normalized === "yes";
+  }
+
+  return false;
+}
+
+function normalizeExistingProductImages(
+  value: unknown
+): ExistingProductImageInput[] {
+  if (Array.isArray(value)) {
+    return value
+      .filter((item): item is ExistingProductImageInput =>
+        isRecord(item) && typeof item.url === "string"
+      )
+      .map((item) => ({
+        url: safeString(item.url),
+        path: safeString(item.path) || null,
+      }))
+      .filter((item) => Boolean(item.url));
+  }
+
+  if (typeof value === "string") {
+    const trimmedValue = value.trim();
+
+    if (!trimmedValue) {
+      return [];
+    }
+
+    try {
+      return normalizeExistingProductImages(JSON.parse(trimmedValue));
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
 }
 
 function normalizeMeasureType(value: unknown): ProductMeasureType {
@@ -449,6 +507,10 @@ function validateImageFile(image: File | null): void {
   if (!image.type || !image.type.startsWith("image/")) {
     throw createHttpError(400, "El archivo debe ser una imagen valida.");
   }
+
+  if (image.size > MAX_PRODUCT_IMAGE_SIZE_BYTES) {
+    throw createHttpError(400, "Cada imagen debe pesar como maximo 8 MB.");
+  }
 }
 
 function requiredEnv(name: string): string {
@@ -549,6 +611,13 @@ async function uploadProductImage(
 }
 
 async function uploadProductImages(images: File[]): Promise<ProductImageUploadResult[]> {
+  if (images.length > MAX_PRODUCT_IMAGE_COUNT) {
+    throw createHttpError(
+      400,
+      `Solo puedes subir hasta ${MAX_PRODUCT_IMAGE_COUNT} imagenes por producto.`
+    );
+  }
+
   const uploads = await Promise.all(images.map((image) => uploadProductImage(image)));
 
   return uploads.filter(
@@ -824,12 +893,24 @@ export async function updateProduct(
   }
 
   const normalized = normalizeProductInput(input, { partial: true });
+  const hasExistingImagesPayload =
+    input.existing_images !== undefined || input.existingImages !== undefined;
+  const retainedExistingImages = normalizeExistingProductImages(
+    input.existing_images ?? input.existingImages
+  );
 
   if (normalized.categoryId) {
     await ensureCategoryExists(normalized.categoryId);
   }
 
   let uploadedImages: ProductImageUploadResult[] = [];
+  const clearExistingImages = parseBoolean(
+    input.clear_existing_images ?? input.clearExistingImages
+  );
+  const retainedImageUrls = retainedExistingImages.map((image) => image.url);
+  const retainedImagePaths = retainedExistingImages
+    .map((image) => image.path)
+    .filter((path): path is string => Boolean(path));
 
   if (images.length > 0) {
     uploadedImages = await uploadProductImages(images);
@@ -838,12 +919,24 @@ export async function updateProduct(
   const updatedAt = new Date();
   const nextData = {
     ...normalized,
-    ...(uploadedImages.length > 0
+    ...(uploadedImages.length > 0 || clearExistingImages || hasExistingImagesPayload
       ? {
-          imageUrl: uploadedImages[0]?.imageUrl || null,
-          imagePath: uploadedImages[0]?.imagePath || null,
-          imageUrls: uploadedImages.map((image) => image.imageUrl),
-          imagePaths: uploadedImages.map((image) => image.imagePath),
+          imageUrl:
+            uploadedImages.length > 0
+              ? uploadedImages[0]?.imageUrl || null
+              : retainedImageUrls[0] || null,
+          imagePath:
+            uploadedImages.length > 0
+              ? uploadedImages[0]?.imagePath || null
+              : retainedImagePaths[0] || null,
+          imageUrls:
+            uploadedImages.length > 0
+              ? uploadedImages.map((image) => image.imageUrl)
+              : retainedImageUrls,
+          imagePaths:
+            uploadedImages.length > 0
+              ? uploadedImages.map((image) => image.imagePath)
+              : retainedImagePaths,
         }
       : {}),
     updatedAt,
@@ -852,7 +945,17 @@ export async function updateProduct(
   await db.collection("products").doc(id).update(nextData);
 
   if (uploadedImages.length > 0) {
-    await deleteProductImages(existing.imagePaths);
+    if (existing.imagePaths.length > 0) {
+      await deleteProductImages(existing.imagePaths);
+    }
+  } else if ((clearExistingImages || hasExistingImagesPayload) && existing.imagePaths.length > 0) {
+    const removedImagePaths = clearExistingImages
+      ? existing.imagePaths
+      : existing.imagePaths.filter((imagePath) => !retainedImagePaths.includes(imagePath));
+
+    if (removedImagePaths.length > 0) {
+      await deleteProductImages(removedImagePaths);
+    }
   }
 
   revalidateCatalogCache();

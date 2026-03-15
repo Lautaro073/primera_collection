@@ -1,3 +1,9 @@
+import { createHttpError } from "@/lib/api/errors";
+import {
+  MAX_PRODUCT_IMAGE_COUNT,
+  MAX_PRODUCT_IMAGE_SIZE_BYTES,
+} from "@/lib/catalog/constants";
+
 function isFileLike(value: unknown): value is File {
   return (
     value instanceof File &&
@@ -25,6 +31,17 @@ export async function parseCatalogRequest(
       }
 
       payload[key] = typeof value === "string" ? value : String(value);
+    }
+
+    if (images.length > MAX_PRODUCT_IMAGE_COUNT) {
+      throw createHttpError(
+        400,
+        `Solo puedes subir hasta ${MAX_PRODUCT_IMAGE_COUNT} imagenes por producto.`
+      );
+    }
+
+    if (images.some((image) => image.size > MAX_PRODUCT_IMAGE_SIZE_BYTES)) {
+      throw createHttpError(400, "Cada imagen debe pesar como maximo 8 MB.");
     }
 
     return {

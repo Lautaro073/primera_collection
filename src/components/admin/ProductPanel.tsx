@@ -2,7 +2,7 @@
 
 import { useRef, useState, type ChangeEvent, type DragEvent, type FormEvent } from "react";
 import { Check, FileImage, LoaderCircle, Pencil, Plus, Save, Search, Trash2 } from "lucide-react";
-import type { Product, ProductFormState, Category } from "@/types/domain";
+import type { Product, ProductFormState, Category, ProductImageAsset } from "@/types/domain";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,7 +35,7 @@ interface ProductPanelProps {
   onFilterChange: (value: string) => void;
   productForm: ProductFormState;
   editingProductId: string;
-  existingProductImages: string[];
+  existingProductImages: ProductImageAsset[];
   imagePreviews: string[];
   isPending: boolean;
   productSubmitting: boolean;
@@ -43,6 +43,8 @@ interface ProductPanelProps {
   onImageChange: (event: ChangeEvent<HTMLInputElement>) => void;
   onAppendImages: (files: File[]) => void;
   onSetPrimaryImage: (index: number) => void;
+  onSetPrimaryExistingImage: (index: number) => void;
+  onRemoveExistingImage: (index: number) => void;
   onClearImages: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onCancel: () => void;
@@ -66,6 +68,8 @@ export function ProductPanel({
   onImageChange,
   onAppendImages,
   onSetPrimaryImage,
+  onSetPrimaryExistingImage,
+  onRemoveExistingImage,
   onClearImages,
   onSubmit,
   onCancel,
@@ -93,7 +97,7 @@ export function ProductPanel({
     product.medidas.length > 0 ? product.medidas.join(" | ") : "-";
   const hasNewImages = productForm.imagenes.length > 0;
   const hasExistingImages = existingProductImages.length > 0;
-  const visibleImages = hasNewImages ? imagePreviews : existingProductImages;
+  const visibleImages = hasNewImages ? imagePreviews : existingProductImages.map((image) => image.url);
   function isFileDrag(event: DragEvent<HTMLDivElement>): boolean {
     return Array.from(event.dataTransfer.types).includes("Files");
   }
@@ -147,12 +151,23 @@ export function ProductPanel({
       <div className="lg:col-span-1">
         <Card className="overflow-hidden rounded-md border-zinc-300 shadow-none">
           <CardHeader className="border-b border-zinc-200 pb-4">
-            <CardTitle>
-              {editingProductId ? "Actualizar Producto" : "Agregar Producto"}
-            </CardTitle>
-            <CardDescription>
-              Carga manual de productos.
-            </CardDescription>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle>
+                  {editingProductId ? "Actualizar Producto" : "Agregar Producto"}
+                </CardTitle>
+                <CardDescription>
+                  Carga manual de productos.
+                </CardDescription>
+              </div>
+
+              {editingProductId ? (
+                <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={onCancel}>
+                  <Plus />
+                  Volver a agregar
+                </Button>
+              ) : null}
+            </div>
           </CardHeader>
 
           <form onSubmit={onSubmit}>
@@ -344,10 +359,10 @@ export function ProductPanel({
                         ) : null}
                       </div>
 
-                      {hasNewImages ? (
-                        <TooltipProvider delayDuration={100}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
+                        {hasNewImages ? (
+                          <TooltipProvider delayDuration={100}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
                               <Button
                                 type="button"
                                 variant="outline"
@@ -356,10 +371,10 @@ export function ProductPanel({
                                 onClick={onClearImages}
                               >
                                 <Trash2 />
-                                <span className="sr-only">Eliminar</span>
+                                <span className="sr-only">Eliminar imagenes nuevas</span>
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Eliminar</TooltipContent>
+                            <TooltipContent>Eliminar imagenes nuevas</TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
                       ) : null}
@@ -404,15 +419,43 @@ export function ProductPanel({
                           <div
                             key={`${image}-${index}`}
                             className={cn(
-                              "relative overflow-hidden rounded-md border border-zinc-300 bg-zinc-50",
-                              index === 0 && "border-black ring-1 ring-black"
+                              "group relative overflow-hidden rounded-md border border-zinc-300 bg-zinc-50 transition",
+                              index === 0 && "border-black ring-1 ring-black",
+                              index > 0 && "hover:border-black"
                             )}
                           >
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (index > 0) {
+                                  onSetPrimaryExistingImage(index);
+                                }
+                              }}
+                              disabled={index === 0}
+                              title={index === 0 ? "Portada actual" : "Usar como portada"}
+                              className="block w-full"
+                            >
                             <img
                               src={image}
                               alt={index === 0 ? "Portada actual del producto" : `Imagen ${index + 1}`}
                               className="aspect-square w-full object-cover"
                             />
+                            </button>
+                            <span className="pointer-events-none absolute inset-0 bg-black/0 transition group-hover:bg-black/10" />
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="secondary"
+                              className="absolute right-1.5 top-1.5 z-10 size-7 rounded-full opacity-100 sm:opacity-0 sm:transition sm:group-hover:opacity-100"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                onRemoveExistingImage(index);
+                              }}
+                            >
+                              <Trash2 className="size-3.5" />
+                              <span className="sr-only">Eliminar imagen {index + 1}</span>
+                            </Button>
                             {index === 0 ? (
                               <>
                                 <span className="pointer-events-none absolute inset-0 ring-1 ring-black" />
@@ -438,7 +481,8 @@ export function ProductPanel({
                     {productSubmitting ? "Guardando..." : "Guardar Cambios"}
                   </Button>
                   <Button className="w-full" variant="outline" type="button" onClick={onCancel}>
-                    Cancelar
+                    <Plus />
+                    Volver a agregar
                   </Button>
                 </>
               ) : (

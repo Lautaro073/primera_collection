@@ -83,6 +83,11 @@ export interface ProductFormState {
   imagenes: File[];
 }
 
+export interface ProductImageAsset {
+  url: string;
+  path: string | null;
+}
+
 export interface CartItemRecord {
   productId: string;
   quantity: number;

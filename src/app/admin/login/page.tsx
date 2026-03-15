@@ -8,7 +8,11 @@ import { isErrorWithMessage } from "@/types/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getFirebaseClientAuth } from "@/lib/firebase/auth";
-import { getAdminSession } from "@/lib/admin/client";
+import {
+  clearAdminSession,
+  getAdminSession,
+  persistAdminSession,
+} from "@/lib/admin/client";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -36,12 +40,14 @@ export default function AdminLoginPage() {
           const session = await getAdminSession(authInstance, user);
 
           if (!session) {
+            await clearAdminSession();
             await signOut(authInstance);
             setError("Tu usuario existe, pero no tiene el claim admin.");
             setBooting(false);
             return;
           }
 
+          await persistAdminSession(session.user);
           router.replace("/admin/catalogo");
         });
       } catch (currentError: unknown) {
@@ -78,11 +84,13 @@ export default function AdminLoginPage() {
       const session = await getAdminSession(auth, credentials.user);
 
       if (!session) {
+        await clearAdminSession();
         await signOut(auth);
         setError("El usuario inicio sesion, pero no tiene permisos de administrador.");
         return;
       }
 
+      await persistAdminSession(session.user);
       router.replace("/admin/catalogo");
     } catch {
       setError("No se pudo iniciar sesion. Revisa email, password.");
