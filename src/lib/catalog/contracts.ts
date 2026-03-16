@@ -13,6 +13,19 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
+function isProductVariant(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isString(value.medida) &&
+    typeof value.stock === "number" &&
+    (value.sku === undefined || isNullableString(value.sku))
+  );
+}
+
+function isProductVariantArray(value: unknown): boolean {
+  return Array.isArray(value) && value.every((item) => isProductVariant(item));
+}
+
 export function isCategory(value: unknown): value is Category {
   return (
     isRecord(value) &&
@@ -39,6 +52,7 @@ export function isProduct(value: unknown): value is Product {
     isNullableString(value.id_categoria) &&
     typeof value.stock === "number" &&
     isStringArray(value.medidas) &&
+    isProductVariantArray(value.variantes) &&
     isNullableString(value.imagen) &&
     isStringArray(value.imagenes) &&
     (value.image_path === undefined || isNullableString(value.image_path)) &&
@@ -60,6 +74,7 @@ export function isProductSearchResult(value: unknown): value is ProductSearchRes
     isNullableString(value.id_categoria) &&
     typeof value.stock === "number" &&
     isStringArray(value.medidas) &&
+    isProductVariantArray(value.variantes) &&
     isNullableString(value.imagen) &&
     isStringArray(value.imagenes)
   );

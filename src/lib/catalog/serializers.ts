@@ -3,6 +3,7 @@ import type {
   FirebaseDateLike,
   Product,
   ProductSearchResult,
+  ProductVariant,
   RawCategoryRecord,
   RawProductRecord,
 } from "@/types/domain";
@@ -40,6 +41,38 @@ function parseNumber(
   return Number.isNaN(numericValue) ? fallback : numericValue;
 }
 
+function serializeProductVariants(product: RawProductRecord): ProductVariant[] {
+  if (!Array.isArray(product.variants)) {
+    return [];
+  }
+
+  const seenMeasures = new Set<string>();
+
+  return product.variants
+    .map((variant) => ({
+      medida: typeof variant?.medida === "string" ? variant.medida.trim() : "",
+      stock: parseNumber(variant?.stock, 0) ?? 0,
+      sku:
+        typeof variant?.sku === "string" && variant.sku.trim()
+          ? variant.sku.trim()
+          : null,
+    }))
+    .filter((variant) => {
+      if (!variant.medida) {
+        return false;
+      }
+
+      const normalizedMeasure = variant.medida.toLowerCase();
+
+      if (seenMeasures.has(normalizedMeasure)) {
+        return false;
+      }
+
+      seenMeasures.add(normalizedMeasure);
+      return true;
+    });
+}
+
 export function serializeCategory(category: RawCategoryRecord): Category {
   return {
     id: category.id,
@@ -51,6 +84,14 @@ export function serializeCategory(category: RawCategoryRecord): Category {
 }
 
 export function serializeProduct(product: RawProductRecord): Product {
+  const variants = serializeProductVariants(product);
+  const measureOptions = Array.isArray(product.measureOptions) ? product.measureOptions : [];
+  const measures = variants.length > 0 ? variants.map((variant) => variant.medida) : measureOptions;
+  const stock =
+    variants.length > 0
+      ? variants.reduce((total, variant) => total + variant.stock, 0)
+      : parseNumber(product.stock, 0) ?? 0;
+
   return {
     id: product.id,
     id_producto: product.id,
@@ -58,10 +99,11 @@ export function serializeProduct(product: RawProductRecord): Product {
     descripcion: product.description || "",
     precio: parseNumber(product.price, 0) ?? 0,
     id_categoria: product.categoryId || null,
-    stock: parseNumber(product.stock, 0) ?? 0,
+    stock,
     tag: product.tag || null,
     tipo_medida: product.measureType || "none",
-    medidas: Array.isArray(product.measureOptions) ? product.measureOptions : [],
+    medidas: measures,
+    variantes: variants,
     imagen: product.imageUrl || null,
     imagenes: Array.isArray(product.imageUrls) ? product.imageUrls : [],
     image_url: product.imageUrl || null,
@@ -87,6 +129,7 @@ export function serializeProductSearchResult(product: Product): ProductSearchRes
     id_categoria: product.id_categoria,
     stock: product.stock,
     medidas: product.medidas,
+    variantes: product.variantes,
     imagen: product.imagen,
     imagenes: product.imagenes,
   };

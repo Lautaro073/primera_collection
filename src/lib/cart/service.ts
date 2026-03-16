@@ -4,6 +4,7 @@ import { createHttpError } from "@/lib/api/errors";
 import { getProductById } from "@/lib/catalog/service";
 import { getCustomerProfileByUid, setCustomerActiveCartId } from "@/lib/customer/service";
 import { getFirebaseAdminDb } from "@/lib/firebase/admin";
+import { getProductVariants, getVariantStock } from "@/lib/storefront";
 import type {
   CartExistsResponse,
   CartIdResponse,
@@ -92,12 +93,14 @@ function serializeCartItem(
   quantity: number,
   selectedMeasure: string | null
 ): SerializedCartItem {
+  const stock = selectedMeasure ? getVariantStock(product, selectedMeasure) : product.stock;
+
   return {
     clave: getCartItemKey(product.id_producto, selectedMeasure),
     cantidad: quantity,
     id_producto: product.id_producto,
     medida_seleccionada: selectedMeasure,
-    stock: product.stock,
+    stock,
     nombre: product.nombre,
     precio: product.precio,
     tag: product.tag,
@@ -237,7 +240,34 @@ function canUseSelectedMeasure(product: Product, selectedMeasure: string | null)
     return product.medidas.length === 0;
   }
 
-  return product.medidas.includes(selectedMeasure);
+  return getProductVariants(product).some((variant) => variant.medida === selectedMeasure);
+}
+
+function getStockLimit(product: Product, selectedMeasure: string | null): number {
+  return selectedMeasure ? getVariantStock(product, selectedMeasure) : product.stock;
+}
+
+function getTrackedQuantity(
+  items: CartItemRecord[],
+  productId: string,
+  selectedMeasure: string | null,
+  useVariantStock: boolean
+): number {
+  return items.reduce((total, item) => {
+    const sameProduct = item.productId === productId;
+    const sameMeasure =
+      normalizeSelectedMeasure(item.selectedMeasure) === normalizeSelectedMeasure(selectedMeasure);
+
+    if (!sameProduct) {
+      return total;
+    }
+
+    if (useVariantStock) {
+      return sameMeasure ? total + item.quantity : total;
+    }
+
+    return total + item.quantity;
+  }, 0);
 }
 
 async function buildMergedItems(
@@ -268,12 +298,14 @@ async function buildMergedItems(
       continue;
     }
 
-    const totalForProduct = mergedItems.reduce(
-      (total, currentItem) =>
-        currentItem.productId === item.productId ? total + currentItem.quantity : total,
-      0
+    const useVariantStock = product.variantes.length > 0;
+    const totalForProduct = getTrackedQuantity(
+      mergedItems,
+      item.productId,
+      selectedMeasure,
+      useVariantStock
     );
-    const availableQuantity = Math.max(0, product.stock - totalForProduct);
+    const availableQuantity = Math.max(0, getStockLimit(product, selectedMeasure) - totalForProduct);
 
     if (availableQuantity === 0) {
       continue;
@@ -571,9 +603,12 @@ export async function addOrUpdateCartItem(
   await db.runTransaction(async (transaction) => {
     const ref = db.collection("carts").doc(normalizedCartId);
     const doc = await transaction.get(ref);
-    const currentCart = doc.exists
-      ? toRawCartRecord(normalizedCartId, doc.data() ?? {})
-      : await ensureCartDocument(normalizedCartId);
+
+    if (!doc.exists) {
+      throw createHttpError(404, "Carrito no encontrado.");
+    }
+
+    const currentCart = toRawCartRecord(normalizedCartId, doc.data() ?? {});
 
     if (currentCart.status !== "active") {
       throw createHttpError(404, "Carrito no encontrado.");
@@ -585,13 +620,15 @@ export async function addOrUpdateCartItem(
 
     const currentData = readTransactionCartData(doc);
     const items = [...currentData.items];
-    const totalForProduct = items.reduce(
-      (total, item) =>
-        item.productId === normalizedProductId ? total + item.quantity : total,
-      0
+    const useVariantStock = existingProduct.variantes.length > 0;
+    const totalForProduct = getTrackedQuantity(
+      items,
+      normalizedProductId,
+      normalizedSelectedMeasure,
+      useVariantStock
     );
 
-    if (totalForProduct + normalizedQuantity > existingProduct.stock) {
+    if (totalForProduct + normalizedQuantity > getStockLimit(existingProduct, normalizedSelectedMeasure)) {
       throw createHttpError(400, "No hay stock suficiente para este producto.");
     }
 
@@ -681,15 +718,22 @@ export async function replaceCartItemQuantity(
       throw createHttpError(404, "El producto no existe en el carrito.");
     }
 
-    const totalForOtherLines = items.reduce(
-      (total, item, index) =>
-        index !== itemIndex && item.productId === normalizedProductId
-          ? total + item.quantity
-          : total,
-      0
-    );
+    const useVariantStock = existingProduct.variantes.length > 0;
+    const totalForOtherLines = items.reduce((total, item, index) => {
+      if (index === itemIndex || item.productId !== normalizedProductId) {
+        return total;
+      }
 
-    if (totalForOtherLines + normalizedQuantity > existingProduct.stock) {
+      if (useVariantStock) {
+        return normalizeSelectedMeasure(item.selectedMeasure) === normalizedSelectedMeasure
+          ? total + item.quantity
+          : total;
+      }
+
+      return total + item.quantity;
+    }, 0);
+
+    if (totalForOtherLines + normalizedQuantity > getStockLimit(existingProduct, normalizedSelectedMeasure)) {
       throw createHttpError(400, "No hay stock suficiente para este producto.");
     }
 

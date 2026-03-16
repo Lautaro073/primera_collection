@@ -7,6 +7,24 @@ export interface FirebaseDateLikeObject {
 export type FirebaseDateLike = Date | string | FirebaseDateLikeObject | null | undefined;
 export type ProductMeasureType = "none" | "ropa" | "calzado";
 
+export interface RawProductVariantRecord {
+  medida: string;
+  stock: number | string | null;
+  sku?: string | null;
+}
+
+export interface ProductVariant {
+  medida: string;
+  stock: number;
+  sku?: string | null;
+}
+
+export interface ProductVariantFormState {
+  medida: string;
+  stock: string;
+  sku: string;
+}
+
 export interface RawCategoryRecord {
   id: string;
   name: string;
@@ -33,6 +51,7 @@ export interface RawProductRecord {
   tag: string | null;
   measureType: ProductMeasureType;
   measureOptions: string[];
+  variants?: RawProductVariantRecord[];
   imageUrl: string | null;
   imagePath: string | null;
   imageUrls: string[];
@@ -52,6 +71,7 @@ export interface Product {
   tag: string | null;
   tipo_medida: ProductMeasureType;
   medidas: string[];
+  variantes: ProductVariant[];
   imagen: string | null;
   imagenes: string[];
   image_url?: string | null;
@@ -70,6 +90,7 @@ export interface ProductSearchResult {
   id_categoria: string | null;
   stock: number;
   medidas: string[];
+  variantes: ProductVariant[];
   imagen: string | null;
   imagenes: string[];
 }
@@ -92,6 +113,7 @@ export interface ProductFormState {
   tag: string;
   tipo_medida: ProductMeasureType;
   medidas: string;
+  variantes: ProductVariantFormState[];
   imagenes: File[];
 }
 

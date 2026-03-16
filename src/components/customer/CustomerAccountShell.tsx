@@ -20,7 +20,7 @@ export function CustomerAccountShell({ children, customer }: CustomerAccountShel
                 Mi cuenta
               </p>
               <h1 className="text-3xl font-semibold tracking-tight">
-                {fullName || customer.email || "Tu perfil"}
+                {fullName || customer.email || "Perfil de cliente"}
               </h1>
               <p className="text-sm text-zinc-600">
                 {customer.email || "Email no disponible"}

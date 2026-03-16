@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -41,7 +42,7 @@ interface CartSessionResponse {
 interface StoreCartContextValue {
   cartId: string;
   items: SerializedCartItem[];
-  getProductQuantity: (productId: string) => number;
+  getProductQuantity: (productId: string, selectedMeasure?: string | null) => number;
   itemCount: number;
   totalAmount: number;
   isReady: boolean;
@@ -77,18 +78,6 @@ async function parseJson<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
-async function ensureCart(cartId: string): Promise<SerializedCartItem[]> {
-  const response = await fetch(`/api/carrito/${encodeURIComponent(cartId)}`, {
-    credentials: "same-origin",
-  });
-
-  if (!response.ok) {
-    throw new Error("No se pudo leer el carrito.");
-  }
-
-  return parseJson<SerializedCartItem[]>(response);
-}
-
 async function requestCartSession(
   cartId: string | null
 ): Promise<CartSessionResponse> {
@@ -119,6 +108,7 @@ export function StoreCartProvider({ children }: StoreCartProviderProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [ownerType, setOwnerType] = useState<CartOwnerType>("anonymous");
+  const ownerTypeRef = useRef<CartOwnerType>("anonymous");
 
   const hydrateCart = useCallback((session: CartSessionResponse): void => {
     window.localStorage.setItem(CART_STORAGE_KEY, session.id_carrito);
@@ -126,6 +116,10 @@ export function StoreCartProvider({ children }: StoreCartProviderProps) {
     setItems(session.items || []);
     setOwnerType(session.owner_type || "anonymous");
   }, []);
+
+  useEffect(() => {
+    ownerTypeRef.current = ownerType;
+  }, [ownerType]);
 
   const initializeCart = useCallback(async () => {
     if (typeof window === "undefined") {
@@ -139,10 +133,6 @@ export function StoreCartProvider({ children }: StoreCartProviderProps) {
       const initializedCart = await requestCartSession(storedCartId);
       hydrateCart(initializedCart);
 
-      if (!initializedCart.items && initializedCart.restored) {
-        const storedItems = await ensureCart(initializedCart.id_carrito);
-        setItems(storedItems);
-      }
     } finally {
       setIsLoading(false);
       setIsReady(true);
@@ -150,6 +140,10 @@ export function StoreCartProvider({ children }: StoreCartProviderProps) {
   }, [hydrateCart]);
 
   useEffect(() => {
+    if (isUserAccountsEnabled()) {
+      return;
+    }
+
     void initializeCart();
   }, [initializeCart]);
 
@@ -175,7 +169,7 @@ export function StoreCartProvider({ children }: StoreCartProviderProps) {
 
           if (user) {
             await persistCustomerSession(user);
-          } else if (ownerType === "customer") {
+          } else if (ownerTypeRef.current === "customer") {
             await clearCustomerSession();
           }
 
@@ -373,11 +367,11 @@ export function StoreCartProvider({ children }: StoreCartProviderProps) {
     [cartId]
   );
 
-  const quantityByProductId = useMemo<Record<string, number>>(() => {
+  const quantityByLineKey = useMemo<Record<string, number>>(() => {
     const quantities: Record<string, number> = {};
 
     for (const item of items) {
-      quantities[item.id_producto] = (quantities[item.id_producto] || 0) + item.cantidad;
+      quantities[item.clave] = item.cantidad;
     }
 
     return quantities;
@@ -387,7 +381,8 @@ export function StoreCartProvider({ children }: StoreCartProviderProps) {
     () => ({
       cartId,
       items,
-      getProductQuantity: (productId: string) => quantityByProductId[productId] || 0,
+      getProductQuantity: (productId: string, selectedMeasure?: string | null) =>
+        quantityByLineKey[buildCartLineKey(productId, selectedMeasure)] || 0,
       itemCount: items.reduce((total, item) => total + item.cantidad, 0),
       totalAmount: items.reduce(
         (total, item) => total + item.precio * item.cantidad,
@@ -437,7 +432,7 @@ export function StoreCartProvider({ children }: StoreCartProviderProps) {
       isReady,
       items,
       openDrawer,
-      quantityByProductId,
+      quantityByLineKey,
       removeItem,
       updateItemQuantity,
     ]

@@ -6,7 +6,7 @@ import { useRef, useState, type PointerEvent } from "react";
 import { AddToCartButton } from "@/components/storefront/AddToCartButton";
 import type { Product, ProductSearchResult } from "@/types/domain";
 import { isCloudinaryImageUrl, storefrontImageLoader } from "@/lib/images";
-import { formatCurrency } from "@/lib/storefront";
+import { formatCurrency, getProductVariants, getVariantStock } from "@/lib/storefront";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -45,6 +45,7 @@ export function ProductQuickViewDialog({
 
   const images = product?.imagenes.length ? product.imagenes : product?.imagen ? [product.imagen] : [];
   const activeImage = images[activeImageIndex] || images[0] || null;
+  const variants = product ? getProductVariants(product) : [];
 
   function clampOffset(
     nextX: number,
@@ -326,19 +327,22 @@ export function ProductQuickViewDialog({
                   </div>
 
                   <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Elige tu talle">
-                    {product.medidas.map((measure) => (
+                    {variants.map((variant) => (
                       <button
-                        key={measure}
+                        key={variant.medida}
                         type="button"
                         role="radio"
-                        aria-checked={selectedMeasure === measure}
-                        onClick={() => setSelectedMeasure(measure)}
-                        className={`rounded-full border px-4 py-2 text-sm font-medium transition ${selectedMeasure === measure
+                        aria-checked={selectedMeasure === variant.medida}
+                        onClick={() => setSelectedMeasure(variant.medida)}
+                        disabled={variant.stock <= 0}
+                        className={`rounded-full border px-4 py-2 text-sm font-medium transition ${selectedMeasure === variant.medida
                           ? "border-black bg-black text-white"
-                          : "border-zinc-300 bg-white text-black hover:border-black"
+                          : variant.stock <= 0
+                            ? "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400"
+                            : "border-zinc-300 bg-white text-black hover:border-black"
                           }`}
                       >
-                        {measure}
+                        {variant.medida}
                       </button>
                     ))}
                   </div>
@@ -349,7 +353,7 @@ export function ProductQuickViewDialog({
                 <AddToCartButton
                   key={selectedMeasure || "sin-talle"}
                   productId={product.id_producto}
-                  stock={product.stock}
+                  stock={getVariantStock(product, selectedMeasure || null)}
                   selectedMeasure={selectedMeasure || null}
                   requiresMeasure={product.medidas.length > 0}
                   className="w-full"

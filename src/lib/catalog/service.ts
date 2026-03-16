@@ -15,8 +15,10 @@ import type {
   FirebaseDateLike,
   Product,
   ProductMeasureType,
+  ProductVariant,
   RawCategoryRecord,
   RawProductRecord,
+  RawProductVariantRecord,
 } from "@/types/domain";
 import { isRecord } from "@/types/shared";
 
@@ -41,6 +43,8 @@ interface ProductInput {
   measureType?: unknown;
   medidas?: unknown;
   measureOptions?: unknown;
+  variantes?: unknown;
+  variants?: unknown;
   existing_images?: unknown;
   existingImages?: unknown;
   clear_existing_images?: unknown;
@@ -66,6 +70,7 @@ interface NormalizedProductInput {
   tag?: string | null;
   measureType?: ProductMeasureType;
   measureOptions?: string[];
+  variants?: RawProductVariantRecord[];
 }
 
 interface ProductImageUploadResult {
@@ -199,6 +204,75 @@ function normalizeMeasureOptions(value: unknown): string[] {
   return [];
 }
 
+function parseVariantStock(value: unknown): number {
+  const stock = parseNumber(value);
+
+  if (stock === null || stock < 0) {
+    throw createHttpError(400, "El stock por variante es invalido.");
+  }
+
+  return stock;
+}
+
+function normalizeProductVariants(value: unknown): RawProductVariantRecord[] {
+  const normalizedSource =
+    typeof value === "string"
+      ? (() => {
+          const trimmedValue = value.trim();
+
+          if (!trimmedValue) {
+            return [];
+          }
+
+          try {
+            return JSON.parse(trimmedValue);
+          } catch {
+            throw createHttpError(400, "Las variantes del producto tienen un formato invalido.");
+          }
+        })()
+      : value;
+
+  if (!Array.isArray(normalizedSource)) {
+    return [];
+  }
+
+  const seenMeasures = new Set<string>();
+
+  const normalizedVariants = normalizedSource
+    .map((item): RawProductVariantRecord | null => {
+      if (!isRecord(item)) {
+        return null;
+      }
+
+      const measure = safeString(item.medida ?? item.measure);
+
+      if (!measure) {
+        return null;
+      }
+
+      const normalizedMeasure = measure.toLowerCase();
+
+      if (seenMeasures.has(normalizedMeasure)) {
+        throw createHttpError(400, "No se pueden repetir variantes con la misma medida.");
+      }
+
+      seenMeasures.add(normalizedMeasure);
+
+      return {
+        medida: measure,
+        stock: parseVariantStock(item.stock),
+        sku: safeString(item.sku) || null,
+      } satisfies RawProductVariantRecord;
+    })
+    .filter((item): item is RawProductVariantRecord => item !== null);
+
+  return normalizedVariants;
+}
+
+function getProductVariantsStock(variants: RawProductVariantRecord[]): number {
+  return variants.reduce((total, variant) => total + Number(variant.stock || 0), 0);
+}
+
 function toComparableDate(value: FirebaseDateLike): number {
   if (!value) {
     return 0;
@@ -325,16 +399,25 @@ function normalizeProductInput(
     input.tipo_medida !== undefined || input.measureType !== undefined;
   const hasMeasureOptions =
     input.medidas !== undefined || input.measureOptions !== undefined;
+  const hasVariants = input.variantes !== undefined || input.variants !== undefined;
 
-  if (!partial || hasMeasureType || hasMeasureOptions) {
+  if (!partial || hasMeasureType || hasMeasureOptions || hasVariants) {
     const measureType = normalizeMeasureType(
       input.tipo_medida ?? input.measureType
     );
     const measureOptions = normalizeMeasureOptions(
       input.medidas ?? input.measureOptions
     );
+    const variants = normalizeProductVariants(input.variantes ?? input.variants);
 
-    if (measureType !== "none" && measureOptions.length === 0) {
+    if (variants.length > 0) {
+      const variantMeasures = variants.map((variant) => variant.medida);
+      normalized.measureOptions = variantMeasures;
+      normalized.variants = variants;
+      normalized.stock = getProductVariantsStock(variants);
+    }
+
+    if (measureType !== "none" && measureOptions.length === 0 && variants.length === 0) {
       throw createHttpError(
         400,
         "Debes indicar al menos una medida disponible para el producto."
@@ -342,7 +425,16 @@ function normalizeProductInput(
     }
 
     normalized.measureType = measureType;
-    normalized.measureOptions = measureType === "none" ? [] : measureOptions;
+    normalized.measureOptions =
+      measureType === "none"
+        ? []
+        : variants.length > 0
+          ? variants.map((variant) => variant.medida)
+          : measureOptions;
+
+    if (measureType === "none") {
+      normalized.variants = [];
+    }
   }
 
   if (partial && Object.keys(normalized).length === 0) {
@@ -392,6 +484,7 @@ function toRawProductRecord(id: string, data: DocumentData): RawProductRecord {
     tag: safeString(data.tag) || null,
     measureType: normalizeMeasureType(data.measureType),
     measureOptions: normalizeMeasureOptions(data.measureOptions),
+    variants: normalizeProductVariants(data.variants),
     imageUrl: fallbackImageUrl || imageUrls[0] || null,
     imagePath: fallbackImagePath || imagePaths[0] || null,
     imageUrls: imageUrls.length > 0 ? imageUrls : (fallbackImageUrl ? [fallbackImageUrl] : []),
@@ -1003,8 +1096,8 @@ export async function deleteProduct(id: string): Promise<DeleteResponse> {
 
 export async function getProductStockById(
   id: string
-): Promise<{ stock: number } | null> {
-  const product = await getProductDocById(id);
+): Promise<{ stock: number; variantes: ProductVariant[] } | null> {
+  const product = await getProductById(id);
 
   if (!product) {
     return null;
@@ -1012,6 +1105,7 @@ export async function getProductStockById(
 
   return {
     stock: Number.isFinite(Number(product.stock)) ? Number(product.stock) : 0,
+    variantes: product.variantes,
   };
 }
 

@@ -82,7 +82,7 @@ export function CustomerProfileForm({ customer }: CustomerProfileFormProps) {
       <CardHeader>
         <CardTitle>Perfil</CardTitle>
         <CardDescription>
-          Edita tus datos basicos para preparar futuras compras y envios.
+          Datos basicos del perfil para futuras compras y envios.
         </CardDescription>
       </CardHeader>
       <CardContent>

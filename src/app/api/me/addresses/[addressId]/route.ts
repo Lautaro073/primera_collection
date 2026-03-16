@@ -4,6 +4,7 @@ import { requireCustomer } from "@/lib/auth/customer";
 import { ensureCommerceFeatureEnabled } from "@/lib/commerce-mode";
 import {
   deleteCustomerAddress,
+  listCustomerAddresses,
   updateCustomerAddress,
 } from "@/lib/customer/address-service";
 import type { RouteContext } from "@/types/next";
@@ -37,7 +38,8 @@ export async function DELETE(
     const customer = await requireCustomer(request);
     const { addressId } = await context.params;
     await deleteCustomerAddress(customer.uid, addressId);
-    return NextResponse.json({ deleted: true });
+    const addresses = await listCustomerAddresses(customer.uid);
+    return NextResponse.json({ deleted: true, addresses });
   } catch (error: unknown) {
     return toErrorResponse(error, "Error al eliminar la direccion del cliente");
   }

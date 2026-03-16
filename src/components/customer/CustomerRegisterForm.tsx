@@ -120,7 +120,7 @@ export function CustomerRegisterForm() {
         </p>
         <CardTitle>Crear cuenta</CardTitle>
         <CardDescription>
-          Registra tus datos para guardar tu perfil y preparar el modo e-commerce.
+          Creación de cuenta para perfil, direcciones y futuras compras.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -132,7 +132,7 @@ export function CustomerRegisterForm() {
                 id="customer-register-first-name"
                 value={form.firstName}
                 onChange={(event) => updateField("firstName", event.target.value)}
-                placeholder="Tu nombre"
+                placeholder="Nombre"
                 autoComplete="given-name"
                 required
               />
@@ -143,7 +143,7 @@ export function CustomerRegisterForm() {
                 id="customer-register-last-name"
                 value={form.lastName}
                 onChange={(event) => updateField("lastName", event.target.value)}
-                placeholder="Tu apellido"
+                placeholder="Apellido"
                 autoComplete="family-name"
                 required
               />
@@ -180,7 +180,7 @@ export function CustomerRegisterForm() {
               type="email"
               value={form.email}
               onChange={(event) => updateField("email", event.target.value)}
-              placeholder="tu@email.com"
+              placeholder="correo@dominio.com"
               autoComplete="email"
               required
             />
@@ -188,7 +188,7 @@ export function CustomerRegisterForm() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="customer-register-password">Password</Label>
+              <Label htmlFor="customer-register-password">Contraseña</Label>
               <Input
                 id="customer-register-password"
                 type="password"
@@ -200,13 +200,13 @@ export function CustomerRegisterForm() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="customer-register-confirm-password">Confirmar password</Label>
+              <Label htmlFor="customer-register-confirm-password">Confirmar Contraseña</Label>
               <Input
                 id="customer-register-confirm-password"
                 type="password"
                 value={form.confirmPassword}
                 onChange={(event) => updateField("confirmPassword", event.target.value)}
-                placeholder="Repite tu password"
+                placeholder="Confirmar contrasena"
                 autoComplete="new-password"
                 required
               />
@@ -230,12 +230,11 @@ export function CustomerRegisterForm() {
             )}
           </Button>
 
-          <p className="text-center text-sm text-zinc-600">
-            Ya tienes cuenta?{" "}
+          <div className="text-center text-sm text-zinc-600">
             <Link href="/login" className="font-medium text-black underline underline-offset-4">
-              Iniciar sesion
+              Acceso para cuentas existentes
             </Link>
-          </p>
+          </div>
         </form>
       </CardContent>
     </Card>

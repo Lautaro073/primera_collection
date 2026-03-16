@@ -83,7 +83,7 @@ export function CustomerLoginForm() {
         </p>
         <CardTitle>Iniciar sesion</CardTitle>
         <CardDescription>
-          Entra con tu cuenta para ver tu perfil y futuras compras.
+          Acceso a perfil, direcciones y futuras compras.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -95,20 +95,20 @@ export function CustomerLoginForm() {
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              placeholder="tu@email.com"
+              placeholder="correo@dominio.com"
               autoComplete="email"
               required
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="customer-login-password">Password</Label>
+            <Label htmlFor="customer-login-password">Contraseña</Label>
             <Input
               id="customer-login-password"
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="Tu password"
+              placeholder="Contrasena"
               autoComplete="current-password"
               required
             />
@@ -131,12 +131,11 @@ export function CustomerLoginForm() {
             )}
           </Button>
 
-          <p className="text-center text-sm text-zinc-600">
-            Todavia no tienes cuenta?{" "}
+          <div className="text-center text-sm text-zinc-600">
             <Link href="/registro" className="font-medium text-black underline underline-offset-4">
-              Crear cuenta
+              Crear cuenta nueva
             </Link>
-          </p>
+          </div>
         </form>
       </CardContent>
     </Card>

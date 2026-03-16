@@ -58,12 +58,19 @@ export function CustomerAddressesCard({ initialAddresses }: CustomerAddressesCar
         credentials: "same-origin",
       });
 
+      const payload = (await response.json()) as
+        | { deleted: true; addresses: CustomerAddress[] }
+        | { error?: string };
+
       if (!response.ok) {
-        const payload = (await response.json()) as { error?: string };
-        throw new Error(payload.error || "No se pudo eliminar la direccion.");
+        throw new Error(
+          "error" in payload && typeof payload.error === "string"
+            ? payload.error
+            : "No se pudo eliminar la direccion."
+        );
       }
 
-      setAddresses((current) => sortAddresses(current.filter((address) => address.id !== addressId)));
+      setAddresses(sortAddresses((payload as { deleted: true; addresses: CustomerAddress[] }).addresses));
     } catch (currentError: unknown) {
       setError(
         isErrorWithMessage(currentError)
@@ -222,7 +229,7 @@ export function CustomerAddressesCard({ initialAddresses }: CustomerAddressesCar
           </div>
         ) : (
           <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-5 py-10 text-center text-sm text-zinc-600">
-            Todavia no guardaste direcciones. Agrega una para dejar tu cuenta lista para el checkout.
+            Sin direcciones guardadas. Agregar una direccion deja la cuenta lista para checkout.
           </div>
         )}
       </CardContent>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { LoaderCircle, Save, X } from "lucide-react";
 import type { CustomerAddress, CustomerAddressLabel } from "@/types/domain";
 import { Button } from "@/components/ui/button";
@@ -52,6 +52,11 @@ export function CustomerAddressForm({
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditing = useMemo(() => Boolean(initialAddress), [initialAddress]);
+
+  useEffect(() => {
+    setForm(buildInitialState(initialAddress));
+    setError("");
+  }, [initialAddress]);
 
   function updateField(field: keyof CustomerAddressFormState, value: string | boolean): void {
     setForm((current) => ({

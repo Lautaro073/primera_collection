@@ -23,10 +23,10 @@ export function CartDrawer() {
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const whatsappPhone = (process.env.NEXT_PUBLIC_WHATSAPP_PHONE ?? "").replace(/\D/g, "");
-  const quantityByProduct = useMemo(
+  const quantityByLine = useMemo(
     () =>
       items.reduce<Record<string, number>>((totals, item) => {
-        totals[item.id_producto] = (totals[item.id_producto] || 0) + item.cantidad;
+        totals[item.clave] = item.cantidad;
         return totals;
       }, {}),
     [items]
@@ -177,7 +177,7 @@ export function CartDrawer() {
                   className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3"
                 >
                   {(() => {
-                    const productQuantityInCart = quantityByProduct[item.id_producto] || 0;
+                    const productQuantityInCart = quantityByLine[item.clave] || 0;
                     const canIncreaseQuantity = productQuantityInCart < item.stock;
 
                     return (

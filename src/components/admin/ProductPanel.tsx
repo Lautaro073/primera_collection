@@ -1,7 +1,13 @@
 import Image from "next/image";
 import { useRef, useState, type ChangeEvent, type DragEvent, type FormEvent } from "react";
 import { Check, FileImage, LoaderCircle, Pencil, Plus, Save, Search, Trash2 } from "lucide-react";
-import type { Product, ProductFormState, Category, ProductImageAsset } from "@/types/domain";
+import type {
+  Product,
+  ProductFormState,
+  Category,
+  ProductImageAsset,
+  ProductVariantFormState,
+} from "@/types/domain";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,7 +44,15 @@ interface ProductPanelProps {
   imagePreviews: string[];
   isPending: boolean;
   productSubmitting: boolean;
-  onFieldChange: (field: keyof ProductFormState, value: string | File[] | null) => void;
+  onFieldChange: (
+    field: keyof ProductFormState,
+    value: string | File[] | ProductVariantFormState[] | null
+  ) => void;
+  onVariantFieldChange: (
+    index: number,
+    field: keyof ProductVariantFormState,
+    value: string
+  ) => void;
   onImageChange: (event: ChangeEvent<HTMLInputElement>) => void;
   onAppendImages: (files: File[]) => void;
   onSetPrimaryImage: (index: number) => void;
@@ -64,6 +78,7 @@ export function ProductPanel({
   isPending,
   productSubmitting,
   onFieldChange,
+  onVariantFieldChange,
   onImageChange,
   onAppendImages,
   onSetPrimaryImage,
@@ -93,7 +108,11 @@ export function ProductPanel({
       ? "Ej: 38, 39, 40, 41"
       : "Ej: S, M, L, XL";
   const productMeasures = (product: Product) =>
-    product.medidas.length > 0 ? product.medidas.join(" | ") : "-";
+    product.variantes.length > 0
+      ? product.variantes.map((variant) => `${variant.medida}:${variant.stock}`).join(" | ")
+      : product.medidas.length > 0
+        ? product.medidas.join(" | ")
+        : "-";
   const hasNewImages = productForm.imagenes.length > 0;
   const hasExistingImages = existingProductImages.length > 0;
   const visibleImages = hasNewImages ? imagePreviews : existingProductImages.map((image) => image.url);
@@ -208,7 +227,9 @@ export function ProductPanel({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="product-stock">Stock</Label>
+                  <Label htmlFor="product-stock">
+                    {productForm.tipo_medida === "none" ? "Stock" : "Stock total"}
+                  </Label>
                   <Input
                     id="product-stock"
                     type="number"
@@ -216,8 +237,14 @@ export function ProductPanel({
                     step="1"
                     value={productForm.stock}
                     onChange={handleTextField("stock")}
+                    readOnly={productForm.tipo_medida !== "none" && productForm.variantes.some((variant) => variant.stock !== "")}
                     required
                   />
+                  {productForm.tipo_medida !== "none" ? (
+                    <p className="text-xs text-zinc-500">
+                      Se actualiza automaticamente si se completa stock por talla.
+                    </p>
+                  ) : null}
                 </div>
               </div>
 
@@ -277,6 +304,44 @@ export function ProductPanel({
                   <p className="text-xs text-zinc-500">
                     Separalos con coma para guardar varias opciones.
                   </p>
+
+                  {productForm.variantes.length > 0 ? (
+                    <div className="space-y-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-medium text-black">Stock por medida</p>
+                        <span className="text-xs text-zinc-500">
+                          Completa stock por talle para activar variantes reales.
+                        </span>
+                      </div>
+
+                      <div className="space-y-2">
+                        {productForm.variantes.map((variant, index) => (
+                          <div key={variant.medida || index} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_110px_140px]">
+                            <Input value={variant.medida} readOnly aria-label={`Medida ${index + 1}`} />
+                            <Input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={variant.stock}
+                              onChange={(event) =>
+                                onVariantFieldChange(index, "stock", event.target.value)
+                              }
+                              placeholder="Stock"
+                              aria-label={`Stock de ${variant.medida}`}
+                            />
+                            <Input
+                              value={variant.sku}
+                              onChange={(event) =>
+                                onVariantFieldChange(index, "sku", event.target.value)
+                              }
+                              placeholder="SKU opcional"
+                              aria-label={`SKU de ${variant.medida}`}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
 
