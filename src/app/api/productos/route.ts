@@ -3,6 +3,7 @@ import { createProduct, listProducts } from "@/lib/catalog/service";
 import { requireAdmin } from "@/lib/auth/admin";
 import { toErrorResponse } from "@/lib/api/errors";
 import { parseCatalogRequest } from "@/lib/catalog/request";
+import { stripInternalProductFields } from "@/lib/catalog/serializers";
 
 export async function GET(request: Request) {
   try {
@@ -11,7 +12,7 @@ export async function GET(request: Request) {
     const offset = Number(searchParams.get("offset") ?? 0);
     const productos = await listProducts({ limit, offset });
 
-    return NextResponse.json(productos);
+    return NextResponse.json(productos.map(stripInternalProductFields));
   } catch (error: unknown) {
     return toErrorResponse(error, "Error al obtener los productos");
   }

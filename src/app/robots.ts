@@ -1,14 +1,18 @@
 import type { MetadataRoute } from "next";
+import { getSiteUrl, shouldIndexSite } from "@/lib/site";
 
-const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").trim();
+const appUrl = getSiteUrl();
 
 export default function robots(): MetadataRoute.Robots {
+  const shouldIndex = shouldIndexSite();
+
   return {
     rules: {
       userAgent: "*",
-      allow: "/",
+      allow: shouldIndex ? "/" : "",
+      disallow: shouldIndex ? undefined : "/",
     },
-    sitemap: `${appUrl}/sitemap.xml`,
-    host: appUrl,
+    sitemap: shouldIndex ? `${appUrl}/sitemap.xml` : undefined,
+    host: shouldIndex ? appUrl : undefined,
   };
 }

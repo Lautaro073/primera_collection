@@ -26,6 +26,7 @@ interface CartMutationResponse {
 
 interface CartSessionResponse {
   id_carrito: string;
+  restored?: boolean;
 }
 
 interface StoreCartContextValue {
@@ -79,14 +80,20 @@ async function ensureCart(cartId: string): Promise<SerializedCartItem[]> {
   return parseJson<SerializedCartItem[]>(response);
 }
 
-async function createCart(): Promise<CartSessionResponse> {
-  const response = await fetch("/api/session/crear", {
+async function initializeCartSession(
+  cartId: string | null
+): Promise<CartSessionResponse> {
+  const response = await fetch("/api/session/cart", {
     method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
     credentials: "same-origin",
+    body: JSON.stringify({ id_carrito: cartId }),
   });
 
   if (!response.ok) {
-    throw new Error("No se pudo crear el carrito.");
+    throw new Error("No se pudo inicializar el carrito.");
   }
 
   return parseJson<CartSessionResponse>(response);
@@ -112,22 +119,16 @@ export function StoreCartProvider({ children }: StoreCartProviderProps) {
 
     try {
       const storedCartId = window.localStorage.getItem(CART_STORAGE_KEY);
+      const initializedCart = await initializeCartSession(storedCartId);
+      window.localStorage.setItem(CART_STORAGE_KEY, initializedCart.id_carrito);
+      setCartId(initializedCart.id_carrito);
 
-      if (storedCartId) {
-        try {
-          const storedItems = await ensureCart(storedCartId);
-          setCartId(storedCartId);
-          setItems(storedItems);
-          return;
-        } catch {
-          window.localStorage.removeItem(CART_STORAGE_KEY);
-        }
+      if (initializedCart.restored) {
+        const storedItems = await ensureCart(initializedCart.id_carrito);
+        setItems(storedItems);
+      } else {
+        setItems([]);
       }
-
-      const createdCart = await createCart();
-      window.localStorage.setItem(CART_STORAGE_KEY, createdCart.id_carrito);
-      setCartId(createdCart.id_carrito);
-      setItems([]);
     } finally {
       setIsLoading(false);
       setIsReady(true);

@@ -4,7 +4,7 @@ import Image from "next/image";
 import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useRef, useState, type PointerEvent } from "react";
 import { AddToCartButton } from "@/components/storefront/AddToCartButton";
-import type { Product } from "@/types/domain";
+import type { Product, ProductSearchResult } from "@/types/domain";
 import { isCloudinaryImageUrl, storefrontImageLoader } from "@/lib/images";
 import { formatCurrency } from "@/lib/storefront";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 
 interface ProductQuickViewDialogProps {
-  product: Product | null;
+  product: Product | ProductSearchResult | null;
   categoryName?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -325,11 +325,13 @@ export function ProductQuickViewDialog({
                     </p>
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Elige tu talle">
                     {product.medidas.map((measure) => (
                       <button
                         key={measure}
                         type="button"
+                        role="radio"
+                        aria-checked={selectedMeasure === measure}
                         onClick={() => setSelectedMeasure(measure)}
                         className={`rounded-full border px-4 py-2 text-sm font-medium transition ${selectedMeasure === measure
                           ? "border-black bg-black text-white"

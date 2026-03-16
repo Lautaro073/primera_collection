@@ -7,6 +7,7 @@ import {
 import { requireAdmin } from "@/lib/auth/admin";
 import { toErrorResponse } from "@/lib/api/errors";
 import { parseCatalogRequest } from "@/lib/catalog/request";
+import { stripInternalProductFields } from "@/lib/catalog/serializers";
 import type { RouteContext } from "@/types/next";
 
 interface ProductParams {
@@ -25,7 +26,7 @@ export async function GET(_request: Request, context: RouteContext<ProductParams
       );
     }
 
-    return NextResponse.json(producto);
+    return NextResponse.json(stripInternalProductFields(producto));
   } catch (error: unknown) {
     return toErrorResponse(error, "Error al obtener el producto");
   }

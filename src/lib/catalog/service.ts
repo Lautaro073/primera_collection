@@ -444,19 +444,30 @@ async function readProductsRaw(): Promise<RawProductRecord[]> {
   return readProductsRawCached();
 }
 
+async function readProductsByCategoryRaw(categoryId: string): Promise<RawProductRecord[]> {
+  if (!categoryId) {
+    return [];
+  }
+
+  const db = getFirebaseAdminDb();
+  const snapshot = await db.collection("products").where("categoryId", "==", categoryId).get();
+
+  return snapshot.docs.map((doc) => toRawProductRecord(doc.id, doc.data() ?? {}));
+}
+
 async function getCategoryRawByIdentifier(identifier: string): Promise<RawCategoryRecord | null> {
   const normalizedIdentifier = normalizeText(identifier);
-  const categories = await readCategoriesRaw();
+  const db = getFirebaseAdminDb();
 
-  return (
-    categories.find(
-      (category) => normalizeText(category.slug) === normalizedIdentifier
-    ) ||
-    categories.find(
-      (category) => normalizeText(category.name) === normalizedIdentifier
-    ) ||
-    null
-  );
+  const slugSnapshot = await db.collection("categories").where("slug", "==", normalizedIdentifier).limit(1).get();
+
+  if (!slugSnapshot.empty) {
+    const firstDoc = slugSnapshot.docs[0];
+    return toRawCategoryRecord(firstDoc.id, firstDoc.data() ?? {});
+  }
+
+  const categories = await readCategoriesRaw();
+  return categories.find((category) => normalizeText(category.name) === normalizedIdentifier) || null;
 }
 
 async function getCategoryDocById(id: string): Promise<RawCategoryRecord | null> {
@@ -681,7 +692,7 @@ export async function listCategories(): Promise<Category[]> {
 }
 
 export async function getCategoryById(id: string): Promise<Category | null> {
-  const category = (await readCategoriesRaw()).find((item) => item.id === id) ?? null;
+  const category = await getCategoryDocById(id);
   return category ? serializeCategory(category) : null;
 }
 
@@ -737,18 +748,16 @@ export async function updateCategory(
 
 export async function deleteCategory(id: string): Promise<DeleteResponse> {
   const db = getFirebaseAdminDb();
-  const [category, products] = await Promise.all([
+  const [category, linkedProductsSnapshot] = await Promise.all([
     getCategoryDocById(id),
-    readProductsRaw(),
+    db.collection("products").where("categoryId", "==", id).limit(1).get(),
   ]);
 
   if (!category) {
     throw createHttpError(404, "Categoria no encontrada.");
   }
 
-  const linkedProducts = products.some((product) => product.categoryId === id);
-
-  if (linkedProducts) {
+  if (!linkedProductsSnapshot.empty) {
     throw createHttpError(
       409,
       "No se puede eliminar la categoria porque tiene productos asociados."
@@ -769,10 +778,7 @@ export async function getCategoryProductsByName(
     return null;
   }
 
-  const products = await readProductsRaw();
-  return sortByCreatedAtDesc(
-    products.filter((product) => product.categoryId === category.id)
-  ).map(serializeProduct);
+  return sortByCreatedAtDesc(await readProductsByCategoryRaw(category.id)).map(serializeProduct);
 }
 
 export async function listProductsByCategoryId(categoryId: string): Promise<Product[]> {
@@ -780,9 +786,7 @@ export async function listProductsByCategoryId(categoryId: string): Promise<Prod
     return [];
   }
 
-  return sortByCreatedAtDesc(await readProductsRaw())
-    .filter((product) => product.categoryId === categoryId)
-    .map(serializeProduct);
+  return sortByCreatedAtDesc(await readProductsByCategoryRaw(categoryId)).map(serializeProduct);
 }
 
 export async function listCategoriesWithProducts(): Promise<CategoryWithProducts[]> {
@@ -834,8 +838,8 @@ export async function listRelatedProducts(
 
   const normalizedLimit = normalizeLimit(limit, 4);
 
-  return sortByCreatedAtDesc(await readProductsRaw())
-    .filter((product) => product.categoryId === categoryId && product.id !== productId)
+  return sortByCreatedAtDesc(await readProductsByCategoryRaw(categoryId))
+    .filter((product) => product.id !== productId)
     .slice(0, normalizedLimit)
     .map(serializeProduct);
 }

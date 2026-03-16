@@ -1,5 +1,4 @@
-/* eslint-disable @next/next/no-img-element */
-
+import Image from "next/image";
 import { useRef, useState, type ChangeEvent, type DragEvent, type FormEvent } from "react";
 import { Check, FileImage, LoaderCircle, Pencil, Plus, Save, Search, Trash2 } from "lucide-react";
 import type { Product, ProductFormState, Category, ProductImageAsset } from "@/types/domain";
@@ -399,11 +398,16 @@ export function ProductPanel({
                               index > 0 && "hover:border-black"
                             )}
                           >
-                            <img
-                              src={image}
-                              alt={index === 0 ? "Portada del producto" : `Miniatura ${index + 1}`}
-                              className="aspect-square w-full object-cover"
-                            />
+                            <div className="relative aspect-square w-full">
+                              <Image
+                                src={image}
+                                alt={index === 0 ? "Portada del producto" : `Miniatura ${index + 1}`}
+                                fill
+                                unoptimized
+                                sizes="112px"
+                                className="object-cover"
+                              />
+                            </div>
                             {index === 0 ? (
                               <>
                                 <span className="pointer-events-none absolute inset-0 ring-1 ring-black" />
@@ -435,11 +439,16 @@ export function ProductPanel({
                               title={index === 0 ? "Portada actual" : "Usar como portada"}
                               className="block w-full"
                             >
-                            <img
-                              src={image}
-                              alt={index === 0 ? "Portada actual del producto" : `Imagen ${index + 1}`}
-                              className="aspect-square w-full object-cover"
-                            />
+                              <div className="relative aspect-square w-full">
+                                <Image
+                                  src={image}
+                                  alt={index === 0 ? "Portada actual del producto" : `Imagen ${index + 1}`}
+                                  fill
+                                  unoptimized
+                                  sizes="112px"
+                                  className="object-cover"
+                                />
+                              </div>
                             </button>
                             <span className="pointer-events-none absolute inset-0 bg-black/0 transition group-hover:bg-black/10" />
                             <Button
@@ -534,9 +543,13 @@ export function ProductPanel({
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
                           {product.imagen ? (
-                            <img
+                            <Image
                               src={product.imagen}
                               alt={product.nombre}
+                              width={32}
+                              height={32}
+                              unoptimized
+                              sizes="32px"
                               className="h-8 w-8 rounded-sm object-cover"
                             />
                           ) : null}

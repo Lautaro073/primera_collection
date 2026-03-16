@@ -27,11 +27,13 @@ export function ProductPurchasePanel({
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Elige tu talle">
             {product.medidas.map((measure) => (
               <button
                 key={measure}
                 type="button"
+                role="radio"
+                aria-checked={selectedMeasure === measure}
                 onClick={() => setSelectedMeasure(measure)}
                 className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
                   selectedMeasure === measure

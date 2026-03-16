@@ -6,6 +6,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { listCategories } from "@/lib/catalog/service";
+import { getCategoryHref } from "@/lib/storefront";
 
 function normalizeWhatsappLink(phone: string): string | null {
   const normalizedPhone = phone.replace(/\D/g, "");
@@ -76,7 +77,7 @@ export async function StoreFooter() {
   const shopLinks: FooterLink[] = [
     { href: "/#inicio", label: "Inicio" },
     ...categories.map((category) => ({
-      href: `/#categoria-${category.slug || category.id_categoria}`,
+      href: getCategoryHref(category),
       label: category.nombre_categoria,
     })),
   ];

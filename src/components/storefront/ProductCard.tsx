@@ -1,25 +1,27 @@
-"use client";
-
 import Image from "next/image";
-import { useState } from "react";
-import { AddToCartButton } from "@/components/storefront/AddToCartButton";
+import Link from "next/link";
+import { ProductCardActions } from "@/components/storefront/ProductCardActions";
+import { ProductQuickViewTrigger } from "@/components/storefront/ProductQuickViewTrigger";
 import type { Product } from "@/types/domain";
-import { isCloudinaryImageUrl, storefrontImageLoader } from "@/lib/images";
-import { formatCurrency } from "@/lib/storefront";
+import { getCloudinaryOptimizedImageUrl, isCloudinaryImageUrl } from "@/lib/images";
+import { formatCurrency, getProductHref } from "@/lib/storefront";
 
 interface ProductCardProps {
   product: Product;
   categoryName?: string;
-  onSelect?: (product: Product) => void;
+  interactiveMode?: "link" | "quick-view";
 }
 
-export function ProductCard({ product, categoryName, onSelect }: ProductCardProps) {
-  const [selectedMeasure, setSelectedMeasure] = useState("");
-  const hasMeasures = product.medidas.length > 0;
-  const measureLabel = product.medidas.length > 1 ? "Talles" : "Talle";
-  const imageLoader = isCloudinaryImageUrl(product.imagen)
-    ? storefrontImageLoader
-    : undefined;
+export function ProductCard({
+  product,
+  categoryName,
+  interactiveMode = "link",
+}: ProductCardProps) {
+  const productHref = getProductHref(product);
+  const imageSrc =
+    product.imagen && isCloudinaryImageUrl(product.imagen)
+      ? getCloudinaryOptimizedImageUrl(product.imagen, 720, 60)
+      : product.imagen;
 
   const details = (
     <div className="space-y-3 p-3 text-left sm:p-4">
@@ -48,12 +50,11 @@ export function ProductCard({ product, categoryName, onSelect }: ProductCardProp
 
   const media = (
     <div className="relative aspect-[4/4.2] overflow-hidden bg-zinc-100 sm:aspect-[4/4.4] lg:aspect-[4/3.9]">
-      {product.imagen ? (
+      {imageSrc ? (
         <Image
-          src={product.imagen}
+          src={imageSrc}
           alt={product.nombre}
           fill
-          loader={imageLoader}
           quality={60}
           sizes="(max-width: 639px) 58vw, (max-width: 1023px) 32vw, (max-width: 1279px) 18rem, 18rem"
           className="absolute inset-0 h-full w-full object-cover"
@@ -68,66 +69,38 @@ export function ProductCard({ product, categoryName, onSelect }: ProductCardProp
 
   return (
     <article className="flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white transition hover:border-zinc-300 hover:shadow-[0_18px_40px_rgba(0,0,0,0.05)]">
-      {onSelect ? (
-        <button
-          type="button"
-          onClick={() => onSelect(product)}
-          className="block w-full text-left"
-        >
+      {interactiveMode === "quick-view" ? (
+        <ProductQuickViewTrigger product={product} categoryName={categoryName} className="block w-full text-left">
           {media}
           {details}
-        </button>
+        </ProductQuickViewTrigger>
       ) : (
-        <div>
+        <Link href={productHref} className="block text-left">
           {media}
           {details}
-        </div>
+        </Link>
       )}
 
       <div className="mt-auto space-y-3 px-3 pb-3 sm:px-4 sm:pb-4">
-        {hasMeasures ? (
-          <div className="space-y-3">
-            <div className="min-h-[74px] space-y-2 text-left sm:flex sm:min-h-[34px] sm:items-center sm:gap-3 sm:space-y-0">
-              <p className="shrink-0 text-[11px] text-zinc-500 sm:text-xs">{measureLabel}</p>
-              <div className="flex flex-wrap gap-2">
-                {product.medidas.map((measure) => (
-                  <button
-                    key={measure}
-                    type="button"
-                    onClick={() => setSelectedMeasure(measure)}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${selectedMeasure === measure
-                      ? "border-black bg-black text-white"
-                      : "border-zinc-300 bg-white text-black hover:border-black"
-                      }`}
-                  >
-                    {measure}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <AddToCartButton
-              key={selectedMeasure || "sin-talle"}
-              productId={product.id_producto}
-              stock={product.stock}
-              selectedMeasure={selectedMeasure || null}
-              requiresMeasure
-              className="w-full"
-            />
-          </div>
+        {interactiveMode === "link" ? (
+          <Link
+            href={productHref}
+            className="inline-flex h-10 w-full items-center justify-center rounded-full border border-zinc-300 bg-white px-4 text-sm font-medium text-zinc-700 transition hover:border-black hover:text-black"
+          >
+            Ver producto
+          </Link>
         ) : (
-          <div className="space-y-3">
-            <div aria-hidden="true" className="h-[74px] sm:h-[34px]" />
-            <AddToCartButton
-              productId={product.id_producto}
-              stock={product.stock}
-              className="w-full"
-            />
-          </div>
+          <ProductQuickViewTrigger
+            product={product}
+            categoryName={categoryName}
+            className="inline-flex h-10 w-full items-center justify-center rounded-full border border-zinc-300 bg-white px-4 text-sm font-medium text-zinc-700 transition hover:border-black hover:text-black"
+          >
+            Vista rapida
+          </ProductQuickViewTrigger>
         )}
+
+        <ProductCardActions product={product} />
       </div>
     </article>
   );
 }
-
-

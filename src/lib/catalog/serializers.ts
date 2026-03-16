@@ -2,6 +2,7 @@ import type {
   Category,
   FirebaseDateLike,
   Product,
+  ProductSearchResult,
   RawCategoryRecord,
   RawProductRecord,
 } from "@/types/domain";
@@ -69,5 +70,32 @@ export function serializeProduct(product: RawProductRecord): Product {
     image_paths: Array.isArray(product.imagePaths) ? product.imagePaths : [],
     created_at: toIsoString(product.createdAt),
     updated_at: toIsoString(product.updatedAt),
+  };
+}
+
+export function stripInternalProductFields(product: Product): Product {
+  const { image_path, image_paths, image_url, image_urls, ...publicFields } = product;
+  return publicFields;
+}
+
+export function serializeProductSearchResult(product: Product): ProductSearchResult {
+  return {
+    id_producto: product.id_producto,
+    nombre: product.nombre,
+    descripcion: product.descripcion,
+    precio: product.precio,
+    id_categoria: product.id_categoria,
+    stock: product.stock,
+    medidas: product.medidas,
+    imagen: product.imagen,
+    imagenes: product.imagenes,
+  };
+}
+
+export function stripInternalCategoryProducts(category: {
+  productos: Product[];
+}): { productos: Product[] } {
+  return {
+    productos: category.productos.map(stripInternalProductFields),
   };
 }

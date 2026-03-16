@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useDeferredValue,
   useEffect,
   useMemo,
@@ -21,6 +22,11 @@ import type {
   Product,
   ProductFormState,
 } from "@/types/domain";
+import {
+  isAdminCatalogPayload,
+  isCategory,
+  isProduct,
+} from "@/lib/catalog/contracts";
 import { isErrorWithMessage, isRecord } from "@/types/shared";
 import {
   MAX_PRODUCT_IMAGE_COUNT,
@@ -44,32 +50,6 @@ function getResponseErrorMessage(payload: unknown, fallback: string): string {
   }
 
   return fallback;
-}
-
-function isCategoryArray(payload: unknown): payload is Category[] {
-  return Array.isArray(payload);
-}
-
-function isProductArray(payload: unknown): payload is Product[] {
-  return Array.isArray(payload);
-}
-
-function isCategory(payload: unknown): payload is Category {
-  return isRecord(payload) && typeof payload.id_categoria === "string";
-}
-
-function isProduct(payload: unknown): payload is Product {
-  return isRecord(payload) && typeof payload.id_producto === "string";
-}
-
-function isAdminCatalogPayload(
-  payload: unknown
-): payload is { categories: Category[]; products: Product[] } {
-  return (
-    isRecord(payload) &&
-    isCategoryArray(payload.categories) &&
-    isProductArray(payload.products)
-  );
 }
 
 function toTimestamp(value: string | null): number {
@@ -222,6 +202,56 @@ export function useAdminCatalog(): UseAdminCatalogResult {
   const [productForm, setProductForm] = useState<ProductFormState>(EMPTY_PRODUCT_FORM);
 
   useEffect(() => {
+    imagePreviewsRef.current = imagePreviews;
+  }, [imagePreviews]);
+
+  useEffect(() => {
+    return () => {
+      if (imagePreviewsRef.current.length > 0) {
+        imagePreviewsRef.current.forEach((preview) => URL.revokeObjectURL(preview));
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!notice) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setNotice("");
+    }, 3500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [notice]);
+
+  const loadCatalog = useCallback(async (currentAuth?: Auth): Promise<void> => {
+    const resolvedAuth = currentAuth ?? auth;
+
+    if (!resolvedAuth) {
+      return;
+    }
+
+    setError("");
+
+    const response = await authorizedFetch(resolvedAuth, "/api/admin/catalog");
+    const payload = await parseJson<
+      { categories: Category[]; products: Product[] } | ErrorResponseBody
+    >(response);
+
+    if (!response.ok) {
+      throw new Error(getResponseErrorMessage(payload, "No se pudo cargar el catalogo."));
+    }
+
+    if (!isAdminCatalogPayload(payload)) {
+      throw new Error("La API devolvio un formato invalido.");
+    }
+
+    setCategories(sortCategories(payload.categories));
+    setProducts(sortProducts(payload.products));
+  }, [auth]);
+
+  useEffect(() => {
     let unsubscribe: () => void = () => undefined;
 
     startTransition(() => {
@@ -276,58 +306,7 @@ export function useAdminCatalog(): UseAdminCatalogResult {
     });
 
     return () => unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router]);
-
-  useEffect(() => {
-    imagePreviewsRef.current = imagePreviews;
-  }, [imagePreviews]);
-
-  useEffect(() => {
-    return () => {
-      if (imagePreviewsRef.current.length > 0) {
-        imagePreviewsRef.current.forEach((preview) => URL.revokeObjectURL(preview));
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!notice) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setNotice("");
-    }, 3500);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [notice]);
-
-  async function loadCatalog(currentAuth?: Auth): Promise<void> {
-    const resolvedAuth = currentAuth ?? auth;
-
-    if (!resolvedAuth) {
-      return;
-    }
-
-    setError("");
-
-    const response = await authorizedFetch(resolvedAuth, "/api/admin/catalog");
-    const payload = await parseJson<
-      { categories: Category[]; products: Product[] } | ErrorResponseBody
-    >(response);
-
-    if (!response.ok) {
-      throw new Error(getResponseErrorMessage(payload, "No se pudo cargar el catalogo."));
-    }
-
-    if (!isAdminCatalogPayload(payload)) {
-      throw new Error("La API devolvio un formato invalido.");
-    }
-
-    setCategories(sortCategories(payload.categories));
-    setProducts(sortProducts(payload.products));
-  }
+  }, [loadCatalog, router]);
 
   function setSuccess(message: string): void {
     setNotice(message);
@@ -528,7 +507,7 @@ export function useAdminCatalog(): UseAdminCatalogResult {
       product.imagenes.length > 0
         ? product.imagenes.map((url, index) => ({
             url,
-            path: product.image_paths[index] || null,
+            path: product.image_paths?.[index] || null,
           }))
         : product.imagen
           ? [{ url: product.imagen, path: product.image_path || null }]

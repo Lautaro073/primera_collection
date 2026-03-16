@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { Minus, Plus, ShoppingBag, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useStoreCart } from "@/components/storefront/StoreCartProvider";
 import { isCloudinaryImageUrl, storefrontImageLoader } from "@/lib/images";
 import { formatCurrency } from "@/lib/storefront";
@@ -20,6 +20,8 @@ export function CartDrawer() {
     removeItem,
   } = useStoreCart();
   const [error, setError] = useState("");
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const whatsappPhone = (process.env.NEXT_PUBLIC_WHATSAPP_PHONE ?? "").replace(/\D/g, "");
   const quantityByProduct = useMemo(
     () =>
@@ -67,13 +69,27 @@ export function CartDrawer() {
       return;
     }
 
+    previousFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    closeButtonRef.current?.focus();
+
+    function handleEscape(event: KeyboardEvent): void {
+      if (event.key === "Escape") {
+        closeDrawer();
+      }
+    }
+
+    document.addEventListener("keydown", handleEscape);
 
     return () => {
+      document.removeEventListener("keydown", handleEscape);
       document.body.style.overflow = previousOverflow;
+      previousFocusRef.current?.focus();
     };
-  }, [isDrawerOpen]);
+  }, [closeDrawer, isDrawerOpen]);
 
   async function handleQuantityChange(
     productId: string,
@@ -110,14 +126,17 @@ export function CartDrawer() {
 
   return (
     <>
-      <div
-        aria-hidden={!isDrawerOpen}
-        onClick={closeDrawer}
+        <div
+          aria-hidden={!isDrawerOpen}
+          onClick={closeDrawer}
         className={`fixed inset-0 z-40 bg-black/35 transition-opacity duration-300 ${isDrawerOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
           }`}
       />
 
       <aside
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="store-cart-title"
         className={`fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l border-zinc-200 bg-white shadow-[-20px_0_80px_rgba(0,0,0,0.12)] transition-transform duration-300 ${isDrawerOpen ? "translate-x-0" : "translate-x-full"
           }`}
       >
@@ -126,12 +145,18 @@ export function CartDrawer() {
             <p className="text-xs font-medium uppercase tracking-[0.22em] text-zinc-500">
               Carrito
             </p>
-            <h2 className="mt-1 text-lg font-semibold text-black">
+            <h2 id="store-cart-title" className="mt-1 text-lg font-semibold text-black">
               {itemCount} producto(s)
             </h2>
           </div>
 
-          <Button type="button" variant="ghost" size="icon" onClick={closeDrawer}>
+          <Button
+            ref={closeButtonRef}
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={closeDrawer}
+          >
             <X />
             <span className="sr-only">Cerrar carrito</span>
           </Button>
@@ -139,7 +164,7 @@ export function CartDrawer() {
 
         <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
           {error ? (
-            <div className="mb-4 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm text-zinc-600">
+            <div role="alert" className="mb-4 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm text-zinc-600">
               {error}
             </div>
           ) : null}

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCategoryProductsByName } from "@/lib/catalog/service";
 import { toErrorResponse } from "@/lib/api/errors";
+import { stripInternalProductFields } from "@/lib/catalog/serializers";
 import type { RouteContext } from "@/types/next";
 
 interface CategoryNameParams {
@@ -19,7 +20,7 @@ export async function GET(_request: Request, context: RouteContext<CategoryNameP
       );
     }
 
-    return NextResponse.json(productos);
+    return NextResponse.json(productos.map(stripInternalProductFields));
   } catch (error: unknown) {
     return toErrorResponse(error, "Error al obtener productos por categoria");
   }

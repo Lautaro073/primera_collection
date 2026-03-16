@@ -54,12 +54,24 @@ export interface Product {
   medidas: string[];
   imagen: string | null;
   imagenes: string[];
-  image_url: string | null;
-  image_urls: string[];
-  image_path: string | null;
-  image_paths: string[];
+  image_url?: string | null;
+  image_urls?: string[];
+  image_path?: string | null;
+  image_paths?: string[];
   created_at: string | null;
   updated_at: string | null;
+}
+
+export interface ProductSearchResult {
+  id_producto: string;
+  nombre: string;
+  descripcion: string;
+  precio: number;
+  id_categoria: string | null;
+  stock: number;
+  medidas: string[];
+  imagen: string | null;
+  imagenes: string[];
 }
 
 export interface CategoryWithProducts extends Category {

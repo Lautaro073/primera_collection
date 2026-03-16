@@ -1,14 +1,24 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useDeferredValue, useEffect, useRef, useState } from "react";
+import {
+  useDeferredValue,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { LoaderCircle, Plus, Search, ShoppingBag, X } from "lucide-react";
 import { useStoreCart } from "@/components/storefront/StoreCartProvider";
-import type { Product } from "@/types/domain";
+import type { ProductSearchResult } from "@/types/domain";
+import { isProductSearchResultArray } from "@/lib/catalog/contracts";
+import { isEcommerceEnabled } from "@/lib/commerce-mode";
 import { isCloudinaryImageUrl, storefrontImageLoader } from "@/lib/images";
-import { formatCurrency } from "@/lib/storefront";
+import { formatCurrency, getProductHref } from "@/lib/storefront";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -26,20 +36,6 @@ const ProductQuickViewDialog = dynamic(
   { ssr: false }
 );
 
-function isProduct(value: unknown): value is Product {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "id_producto" in value &&
-    "nombre" in value &&
-    "precio" in value
-  );
-}
-
-function isProductArray(value: unknown): value is Product[] {
-  return Array.isArray(value) && value.every((item) => isProduct(item));
-}
-
 function getSearchError(payload: unknown): string {
   if (
     typeof payload === "object" &&
@@ -54,18 +50,25 @@ function getSearchError(payload: unknown): string {
 }
 
 export function StoreHeader() {
+  const router = useRouter();
+  const ecommerceEnabled = isEcommerceEnabled();
   const { addItem, isDrawerOpen, itemCount, totalAmount, openDrawer } = useStoreCart();
+  const desktopSearchInputId = useId();
+  const mobileSearchInputId = useId();
+  const desktopSearchResultsId = useId();
+  const mobileSearchResultsId = useId();
   const cartButtonRef = useRef<HTMLSpanElement | null>(null);
   const desktopSearchContainerRef = useRef<HTMLDivElement | null>(null);
   const mobileSearchContainerRef = useRef<HTMLDivElement | null>(null);
   const [showFloatingCartButton, setShowFloatingCartButton] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [searchResults, setSearchResults] = useState<ProductSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [showAllResults, setShowAllResults] = useState(false);
   const [searchError, setSearchError] = useState("");
-  const [activeProduct, setActiveProduct] = useState<Product | null>(null);
+  const [activeProduct, setActiveProduct] = useState<ProductSearchResult | null>(null);
+  const [highlightedResultIndex, setHighlightedResultIndex] = useState(-1);
   const [isMobileSearchVisible, setIsMobileSearchVisible] = useState(false);
   const deferredSearchTerm = useDeferredValue(searchTerm);
 
@@ -151,7 +154,7 @@ export function StoreHeader() {
             return;
           }
 
-          if (!isProductArray(payload)) {
+          if (!isProductSearchResultArray(payload)) {
             setSearchResults([]);
             setSearchError("La busqueda devolvio un formato invalido.");
             setIsSearchOpen(true);
@@ -188,11 +191,13 @@ export function StoreHeader() {
     };
   }, [deferredSearchTerm]);
 
-  async function handleResultAction(product: Product): Promise<void> {
+  useEffect(() => {
+    setHighlightedResultIndex(-1);
+  }, [searchResults, showAllResults, searchTerm]);
+
+  async function handleResultAction(product: ProductSearchResult): Promise<void> {
     if (product.medidas.length > 0 || product.stock <= 0) {
-      setActiveProduct(product);
-      setIsSearchOpen(false);
-      setIsMobileSearchVisible(false);
+      openProductDialog(product);
       return;
     }
 
@@ -211,7 +216,7 @@ export function StoreHeader() {
     }
   }
 
-  function handleOpenProduct(product: Product): void {
+  function openProductDialog(product: ProductSearchResult): void {
     setActiveProduct(product);
     setIsSearchOpen(false);
     setIsMobileSearchVisible(false);
@@ -223,22 +228,89 @@ export function StoreHeader() {
       ? searchResults
       : searchResults.slice(0, 3);
 
+  function handleSearchInputChange(nextValue: string): void {
+    setSearchTerm(nextValue);
+    setShowAllResults(false);
+  }
+
+  function handleSearchInputKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
+    if (!isSearchOpen || visibleResults.length === 0) {
+      if (event.key === "Escape") {
+        setIsSearchOpen(false);
+      }
+
+      return;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setHighlightedResultIndex((current) =>
+        current >= visibleResults.length - 1 ? 0 : current + 1
+      );
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setHighlightedResultIndex((current) =>
+        current <= 0 ? visibleResults.length - 1 : current - 1
+      );
+      return;
+    }
+
+    if (event.key === "Enter" && highlightedResultIndex >= 0) {
+      event.preventDefault();
+      const highlightedProduct = visibleResults[highlightedResultIndex];
+
+      if (highlightedProduct) {
+        if (ecommerceEnabled) {
+          setIsSearchOpen(false);
+          setIsMobileSearchVisible(false);
+          router.push(getProductHref(highlightedProduct));
+        } else {
+          openProductDialog(highlightedProduct);
+        }
+      }
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setIsSearchOpen(false);
+    }
+  }
+
   function renderDesktopSearchField() {
     return (
-      <div className="relative">
+      <div
+        className="relative"
+        role="combobox"
+        aria-expanded={isSearchOpen}
+        aria-haspopup="listbox"
+        aria-controls={desktopSearchResultsId}
+      >
+        <label htmlFor={desktopSearchInputId} className="sr-only">
+          Buscar productos
+        </label>
         <Input
+          id={desktopSearchInputId}
           type="text"
           value={searchTerm}
-          onChange={(event) => {
-            setSearchTerm(event.target.value);
-            setShowAllResults(false);
-          }}
+          onChange={(event) => handleSearchInputChange(event.target.value)}
           onFocus={() => {
             if (searchTerm.trim().length >= 2) {
               setIsSearchOpen(true);
             }
           }}
+          onKeyDown={handleSearchInputKeyDown}
           placeholder="Buscar productos..."
+          aria-autocomplete="list"
+          aria-controls={desktopSearchResultsId}
+          aria-activedescendant={
+            highlightedResultIndex >= 0
+              ? `${desktopSearchResultsId}-option-${highlightedResultIndex}`
+              : undefined
+          }
           className="h-12 rounded-2xl border-zinc-300 pr-12 pl-4 text-sm sm:h-14 sm:text-base"
           autoComplete="off"
         />
@@ -256,6 +328,10 @@ export function StoreHeader() {
   function renderMobileSearchField() {
     return (
       <div
+        role={isMobileSearchVisible ? "combobox" : undefined}
+        aria-expanded={isMobileSearchVisible ? isSearchOpen : undefined}
+        aria-haspopup={isMobileSearchVisible ? "listbox" : undefined}
+        aria-controls={isMobileSearchVisible ? mobileSearchResultsId : undefined}
         className={`relative overflow-hidden rounded-full border border-zinc-300 bg-white transition-all duration-300 ${isMobileSearchVisible
             ? "w-full opacity-100"
             : "w-10 opacity-100"
@@ -263,19 +339,29 @@ export function StoreHeader() {
       >
         {isMobileSearchVisible ? (
           <>
+            <label htmlFor={mobileSearchInputId} className="sr-only">
+              Buscar productos
+            </label>
             <Input
+              id={mobileSearchInputId}
               type="text"
               value={searchTerm}
-              onChange={(event) => {
-                setSearchTerm(event.target.value);
-                setShowAllResults(false);
-              }}
+              onChange={(event) => handleSearchInputChange(event.target.value)}
               onFocus={() => {
                 if (searchTerm.trim().length >= 2) {
                   setIsSearchOpen(true);
                 }
               }}
+              onKeyDown={handleSearchInputKeyDown}
               placeholder="Buscar..."
+              aria-autocomplete="list"
+              aria-controls={mobileSearchResultsId}
+              aria-expanded={isSearchOpen}
+              aria-activedescendant={
+                highlightedResultIndex >= 0
+                  ? `${mobileSearchResultsId}-option-${highlightedResultIndex}`
+                  : undefined
+              }
               className="h-10 border-0 bg-transparent pr-10 pl-3 text-sm shadow-none focus-visible:ring-0"
               autoComplete="off"
             />
@@ -315,6 +401,8 @@ export function StoreHeader() {
       return null;
     }
 
+    const resultsId = isMobile ? mobileSearchResultsId : desktopSearchResultsId;
+
     return (
       <div
         className={`${isMobile
@@ -331,7 +419,11 @@ export function StoreHeader() {
           </h2>
         </div>
 
-        <div className="max-h-[60vh] overflow-y-auto px-5 py-3">
+        <div
+          id={resultsId}
+          role="listbox"
+          className="max-h-[60vh] overflow-y-auto px-5 py-3"
+        >
           {searchError ? (
             <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4 text-sm text-zinc-600">
               {searchError}
@@ -345,52 +437,104 @@ export function StoreHeader() {
           ) : null}
 
           <div className="space-y-2">
-            {visibleResults.map((product) => (
+            {visibleResults.map((product, index) => (
               <div
                 key={product.id_producto}
-                className="flex items-center gap-3 rounded-2xl border border-transparent px-2 py-2 transition hover:border-zinc-200 hover:bg-zinc-50"
+                id={`${resultsId}-option-${index}`}
+                role="option"
+                aria-selected={highlightedResultIndex === index}
+                className={cn(
+                  "flex items-center gap-3 rounded-2xl border border-transparent px-2 py-2 transition hover:border-zinc-200 hover:bg-zinc-50",
+                  highlightedResultIndex === index && "border-zinc-200 bg-zinc-50"
+                )}
               >
-                <button
-                  type="button"
-                  onClick={() => handleOpenProduct(product)}
-                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                >
-                  <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-zinc-100">
-                    {product.imagen ? (
-                      <Image
-                        src={product.imagen}
-                        alt={product.nombre}
-                        fill
-                        loader={isCloudinaryImageUrl(product.imagen) ? storefrontImageLoader : undefined}
-                        quality={55}
-                        sizes="64px"
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-full items-center justify-center text-[10px] uppercase tracking-[0.18em] text-zinc-400">
-                        Sin
-                      </div>
-                    )}
-                  </div>
+                {ecommerceEnabled ? (
+                  <Link
+                    href={getProductHref(product)}
+                    onMouseEnter={() => setHighlightedResultIndex(index)}
+                    onFocus={() => setHighlightedResultIndex(index)}
+                    onClick={() => {
+                      setIsSearchOpen(false);
+                      setIsMobileSearchVisible(false);
+                    }}
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                  >
+                    <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-zinc-100">
+                      {product.imagen ? (
+                        <Image
+                          src={product.imagen}
+                          alt={product.nombre}
+                          fill
+                          loader={isCloudinaryImageUrl(product.imagen) ? storefrontImageLoader : undefined}
+                          quality={55}
+                          sizes="64px"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-[10px] uppercase tracking-[0.18em] text-zinc-400">
+                          Sin
+                        </div>
+                      )}
+                    </div>
 
-                  <div className="min-w-0">
-                    <p className="truncate text-base font-semibold text-black">
-                      {product.nombre}
-                    </p>
-                    <p className="mt-0.5 line-clamp-1 text-sm text-zinc-500">
-                      {product.descripcion || "Sin descripcion disponible."}
-                    </p>
-                    <p className="mt-1 text-base font-semibold text-black">
-                      {formatCurrency(product.precio)}
-                    </p>
-                  </div>
-                </button>
+                    <div className="min-w-0">
+                      <p className="truncate text-base font-semibold text-black">
+                        {product.nombre}
+                      </p>
+                      <p className="mt-0.5 line-clamp-1 text-sm text-zinc-500">
+                        {product.descripcion || "Sin descripcion disponible."}
+                      </p>
+                      <p className="mt-1 text-base font-semibold text-black">
+                        {formatCurrency(product.precio)}
+                      </p>
+                    </div>
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    onMouseEnter={() => setHighlightedResultIndex(index)}
+                    onFocus={() => setHighlightedResultIndex(index)}
+                    onClick={() => openProductDialog(product)}
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                  >
+                    <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-zinc-100">
+                      {product.imagen ? (
+                        <Image
+                          src={product.imagen}
+                          alt={product.nombre}
+                          fill
+                          loader={isCloudinaryImageUrl(product.imagen) ? storefrontImageLoader : undefined}
+                          quality={55}
+                          sizes="64px"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-[10px] uppercase tracking-[0.18em] text-zinc-400">
+                          Sin
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="min-w-0">
+                      <p className="truncate text-base font-semibold text-black">
+                        {product.nombre}
+                      </p>
+                      <p className="mt-0.5 line-clamp-1 text-sm text-zinc-500">
+                        {product.descripcion || "Sin descripcion disponible."}
+                      </p>
+                      <p className="mt-1 text-base font-semibold text-black">
+                        {formatCurrency(product.precio)}
+                      </p>
+                    </div>
+                  </button>
+                )}
 
                 <Button
                   type="button"
                   size="icon"
                   variant="secondary"
                   className="shrink-0 rounded-full"
+                  onMouseEnter={() => setHighlightedResultIndex(index)}
                   onClick={() => {
                     void handleResultAction(product);
                   }}
@@ -510,6 +654,7 @@ export function StoreHeader() {
 
       {activeProduct ? (
         <ProductQuickViewDialog
+          key={activeProduct.id_producto}
           product={activeProduct}
           open={Boolean(activeProduct)}
           onOpenChange={(open) => {
