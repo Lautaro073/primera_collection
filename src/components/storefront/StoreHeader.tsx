@@ -16,7 +16,7 @@ import { LoaderCircle, Plus, Search, ShoppingBag, X } from "lucide-react";
 import { useStoreCart } from "@/components/storefront/StoreCartProvider";
 import type { ProductSearchResult } from "@/types/domain";
 import { isProductSearchResultArray } from "@/lib/catalog/contracts";
-import { isEcommerceEnabled } from "@/lib/commerce-mode";
+import { isEcommerceEnabled, isUserAccountsEnabled } from "@/lib/commerce-mode";
 import { isCloudinaryImageUrl, storefrontImageLoader } from "@/lib/images";
 import { formatCurrency, getProductHref } from "@/lib/storefront";
 import { Button } from "@/components/ui/button";
@@ -52,6 +52,7 @@ function getSearchError(payload: unknown): string {
 export function StoreHeader() {
   const router = useRouter();
   const ecommerceEnabled = isEcommerceEnabled();
+  const userAccountsEnabled = isUserAccountsEnabled();
   const { addItem, isDrawerOpen, itemCount, totalAmount, openDrawer } = useStoreCart();
   const desktopSearchInputId = useId();
   const mobileSearchInputId = useId();
@@ -610,6 +611,11 @@ export function StoreHeader() {
               <Link href="/" className="shrink-0 transition hover:text-black md:inline">
                 Inicio
               </Link>
+              {userAccountsEnabled ? (
+                <Link href="/mi-cuenta" className="shrink-0 transition hover:text-black md:inline">
+                  Mi cuenta
+                </Link>
+              ) : null}
               <span ref={cartButtonRef}>
                 <Button
                   type="button"

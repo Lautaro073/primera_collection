@@ -100,6 +100,98 @@ export interface ProductImageAsset {
   path: string | null;
 }
 
+export interface RawCustomerRecord {
+  uid: string;
+  email: string | null;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  dni: string;
+  activeCartId?: string | null;
+  defaultAddressId?: string | null;
+  createdAt?: FirebaseDateLike;
+  updatedAt?: FirebaseDateLike;
+  lastLoginAt?: FirebaseDateLike;
+}
+
+export interface CustomerProfile {
+  uid: string;
+  email: string | null;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  dni: string;
+  active_cart_id?: string | null;
+  default_address_id?: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  last_login_at: string | null;
+}
+
+export interface CustomerProfileInput {
+  email?: string | null;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  dni?: string;
+  activeCartId?: string | null;
+  defaultAddressId?: string | null;
+}
+
+export type CustomerAddressLabel = "casa" | "trabajo" | "otro";
+
+export interface RawCustomerAddressRecord {
+  id: string;
+  customerUid: string;
+  label: CustomerAddressLabel;
+  recipientName: string;
+  phone: string;
+  line1: string;
+  line2: string;
+  city: string;
+  province: string;
+  postalCode: string;
+  countryCode: "AR";
+  deliveryNotes: string;
+  isDefault: boolean;
+  createdAt?: FirebaseDateLike;
+  updatedAt?: FirebaseDateLike;
+  lastUsedAt?: FirebaseDateLike;
+}
+
+export interface CustomerAddress {
+  id: string;
+  customer_uid: string;
+  label: CustomerAddressLabel;
+  recipient_name: string;
+  phone: string;
+  line_1: string;
+  line_2: string;
+  city: string;
+  province: string;
+  postal_code: string;
+  country_code: "AR";
+  delivery_notes: string;
+  is_default: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+  last_used_at: string | null;
+}
+
+export interface CustomerAddressInput {
+  label?: CustomerAddressLabel;
+  recipientName?: string;
+  phone?: string;
+  line1?: string;
+  line2?: string;
+  city?: string;
+  province?: string;
+  postalCode?: string;
+  countryCode?: "AR";
+  deliveryNotes?: string;
+  isDefault?: boolean;
+}
+
 export interface CartItemRecord {
   productId: string;
   quantity: number;
@@ -109,9 +201,17 @@ export interface CartItemRecord {
 export interface RawCartRecord {
   id: string;
   items: CartItemRecord[];
-  createdAt?: Date;
-  updatedAt?: Date;
+  customerUid?: string | null;
+  ownerType?: CartOwnerType;
+  status?: CartStatus;
+  mergedIntoCartId?: string | null;
+  createdAt?: FirebaseDateLike;
+  updatedAt?: FirebaseDateLike;
+  lastActivityAt?: FirebaseDateLike;
 }
+
+export type CartOwnerType = "anonymous" | "customer";
+export type CartStatus = "active" | "merged" | "abandoned";
 
 export interface SerializedCartItem {
   clave: string;
@@ -131,6 +231,8 @@ export interface CartExistsResponse {
 
 export interface CartIdResponse {
   id_carrito: string;
+  owner_type?: CartOwnerType;
+  restored?: boolean;
 }
 
 export interface DeleteResponse {

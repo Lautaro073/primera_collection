@@ -9,9 +9,15 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { onIdTokenChanged } from "firebase/auth";
 import type { SerializedCartItem } from "@/types/domain";
+import { getFirebaseClientAuth } from "@/lib/firebase/auth";
+import { isUserAccountsEnabled } from "@/lib/commerce-mode";
+import { clearCustomerSession, persistCustomerSession } from "@/lib/customer/client";
 
 const CART_STORAGE_KEY = "primera_collection_cart_id";
+
+type CartOwnerType = "anonymous" | "customer";
 
 function buildCartLineKey(
   productId: string,
@@ -26,6 +32,9 @@ interface CartMutationResponse {
 
 interface CartSessionResponse {
   id_carrito: string;
+  items?: SerializedCartItem[];
+  merged?: boolean;
+  owner_type?: CartOwnerType;
   restored?: boolean;
 }
 
@@ -80,7 +89,7 @@ async function ensureCart(cartId: string): Promise<SerializedCartItem[]> {
   return parseJson<SerializedCartItem[]>(response);
 }
 
-async function initializeCartSession(
+async function requestCartSession(
   cartId: string | null
 ): Promise<CartSessionResponse> {
   const response = await fetch("/api/session/cart", {
@@ -109,6 +118,14 @@ export function StoreCartProvider({ children }: StoreCartProviderProps) {
   const [isReady, setIsReady] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [ownerType, setOwnerType] = useState<CartOwnerType>("anonymous");
+
+  const hydrateCart = useCallback((session: CartSessionResponse): void => {
+    window.localStorage.setItem(CART_STORAGE_KEY, session.id_carrito);
+    setCartId(session.id_carrito);
+    setItems(session.items || []);
+    setOwnerType(session.owner_type || "anonymous");
+  }, []);
 
   const initializeCart = useCallback(async () => {
     if (typeof window === "undefined") {
@@ -119,25 +136,64 @@ export function StoreCartProvider({ children }: StoreCartProviderProps) {
 
     try {
       const storedCartId = window.localStorage.getItem(CART_STORAGE_KEY);
-      const initializedCart = await initializeCartSession(storedCartId);
-      window.localStorage.setItem(CART_STORAGE_KEY, initializedCart.id_carrito);
-      setCartId(initializedCart.id_carrito);
+      const initializedCart = await requestCartSession(storedCartId);
+      hydrateCart(initializedCart);
 
-      if (initializedCart.restored) {
+      if (!initializedCart.items && initializedCart.restored) {
         const storedItems = await ensureCart(initializedCart.id_carrito);
         setItems(storedItems);
-      } else {
-        setItems([]);
       }
     } finally {
       setIsLoading(false);
       setIsReady(true);
     }
-  }, []);
+  }, [hydrateCart]);
 
   useEffect(() => {
     void initializeCart();
   }, [initializeCart]);
+
+  useEffect(() => {
+    if (!isUserAccountsEnabled()) {
+      return;
+    }
+
+    let unsubscribe: () => void = () => undefined;
+
+    void (async () => {
+      const auth = await getFirebaseClientAuth();
+
+      unsubscribe = onIdTokenChanged(auth, async (user) => {
+        if (typeof window === "undefined") {
+          return;
+        }
+
+        const storedCartId = window.localStorage.getItem(CART_STORAGE_KEY);
+
+        try {
+          setIsLoading(true);
+
+          if (user) {
+            await persistCustomerSession(user);
+          } else if (ownerType === "customer") {
+            await clearCustomerSession();
+          }
+
+          const nextCart = await requestCartSession(storedCartId);
+          hydrateCart(nextCart);
+        } catch {
+          if (!user) {
+            window.localStorage.removeItem(CART_STORAGE_KEY);
+          }
+        } finally {
+          setIsLoading(false);
+          setIsReady(true);
+        }
+      });
+    })();
+
+    return () => unsubscribe();
+  }, [hydrateCart, ownerType]);
 
   const openDrawer = useCallback(() => {
     setIsDrawerOpen(true);

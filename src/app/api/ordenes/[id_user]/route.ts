@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createOrder, listOrdersByUser } from "@/lib/orders/service";
 import { toErrorResponse } from "@/lib/api/errors";
+import { ensureCommerceFeatureEnabled } from "@/lib/commerce-mode";
 import type { RouteContext } from "@/types/next";
 
 interface OrderUserParams {
@@ -9,6 +10,7 @@ interface OrderUserParams {
 
 export async function GET(_request: Request, context: RouteContext<OrderUserParams>) {
   try {
+    ensureCommerceFeatureEnabled("checkout", "Las ordenes no estan habilitadas en modo catalogo.");
     const { id_user } = await context.params;
     const orders = await listOrdersByUser(id_user);
     return NextResponse.json(orders);
@@ -19,6 +21,7 @@ export async function GET(_request: Request, context: RouteContext<OrderUserPara
 
 export async function POST(request: Request, context: RouteContext<OrderUserParams>) {
   try {
+    ensureCommerceFeatureEnabled("checkout", "Las ordenes no estan habilitadas en modo catalogo.");
     const { id_user } = await context.params;
     const body = (await request.json()) as { items?: unknown };
     const result = await createOrder(id_user, body.items);

@@ -10,6 +10,30 @@ E-commerce desarrollado con `Next.js`, `TypeScript`, `Firebase` y `Cloudinary`, 
 
 El proyecto unifica frontend y backend dentro de `Next.js App Router`, con API propia en `app/api`.
 
+## Modos de negocio
+
+La base ahora soporta dos modos:
+
+- `catalogo`: quick view, carrito orientado a consulta y cierre por WhatsApp
+- `ecommerce`: activa la capa completa de compra real
+
+Flag principal:
+
+```env
+NEXT_PUBLIC_ECOMMERCE_ENABLED=false
+```
+
+Flags secundarios opcionales:
+
+```env
+NEXT_PUBLIC_ENABLE_CHECKOUT=
+NEXT_PUBLIC_ENABLE_USER_ACCOUNTS=
+NEXT_PUBLIC_ENABLE_SHIPPING_QUOTES=
+NEXT_PUBLIC_ENABLE_DISCOUNTS=
+```
+
+Si `NEXT_PUBLIC_ECOMMERCE_ENABLED=true`, los flags secundarios sin definir se consideran activos por defecto.
+
 ## Demo funcional
 
 Actualmente incluye:
@@ -107,6 +131,11 @@ CLOUDINARY_API_KEY=
 CLOUDINARY_API_SECRET=
 
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_ECOMMERCE_ENABLED=false
+NEXT_PUBLIC_ENABLE_CHECKOUT=
+NEXT_PUBLIC_ENABLE_USER_ACCOUNTS=
+NEXT_PUBLIC_ENABLE_SHIPPING_QUOTES=
+NEXT_PUBLIC_ENABLE_DISCOUNTS=
 NEXT_PUBLIC_WHATSAPP_PHONE=
 NEXT_PUBLIC_INSTAGRAM_URL=
 NEXT_PUBLIC_MAPS_URL=
@@ -171,6 +200,9 @@ Despues de asignar el claim, el usuario debe cerrar sesion y volver a entrar.
 - `/`
 - `/categoria/[slug]`
 - `/producto/[id]`
+- `/login` *(solo modo ecommerce con cuentas activas)*
+- `/registro` *(solo modo ecommerce con cuentas activas)*
+- `/mi-cuenta` *(solo modo ecommerce con cuentas activas)*
 
 ### Admin
 
@@ -204,14 +236,30 @@ Despues de asignar el claim, el usuario debe cerrar sesion y volver a entrar.
 
 ### Session / carrito
 
-- `GET /api/session/start-session`
-- `POST /api/session/crear`
-- `POST /api/session/guardar`
-- `GET /api/session/verificar/:id_carrito`
+- `POST /api/session/cart`
 - `GET /api/carrito/:id_carrito`
 - `POST /api/carrito/:id_carrito`
 - `PUT /api/carrito/:id_carrito/:id_producto`
 - `DELETE /api/carrito/:id_carrito/:id_producto`
+
+### Customer auth base
+
+- `GET /api/auth/customer-session`
+- `POST /api/auth/customer-session`
+- `DELETE /api/auth/customer-session`
+- `POST /api/auth/register`
+- `GET /api/me`
+- `GET /api/me/addresses`
+- `POST /api/me/addresses`
+- `PATCH /api/me/addresses/:addressId`
+- `DELETE /api/me/addresses/:addressId`
+- `PUT /api/me/addresses/:addressId/default`
+- `PATCH /api/me/profile`
+
+Notas:
+
+- `POST /api/session/cart` ahora es el punto recomendado para inicializar o restaurar carrito
+- si el cliente inicia sesion, el carrito anonimo puede sincronizarse con el carrito del usuario autenticado
 
 ### Checkout / ordenes
 
@@ -248,9 +296,14 @@ El proyecto esta funcional para:
 
 Pendientes naturales:
 
-- endurecer el tipado de payloads de API
+- cuentas de usuario para modo ecommerce
 - stock por variante/talle
-- flujo de checkout final con pasarela real en produccion
+- descuentos, checkout y pagos reales para modo ecommerce
+
+## Roadmap ecommerce
+
+- `docs/plan-ecommerce-completo.md`
+- `docs/backlog-ecommerce-fases.md`
 
 
 ## Autor
