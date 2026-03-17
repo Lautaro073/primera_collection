@@ -18,7 +18,7 @@ import type { ProductSearchResult } from "@/types/domain";
 import { isProductSearchResultArray } from "@/lib/catalog/contracts";
 import { isEcommerceEnabled, isUserAccountsEnabled } from "@/lib/commerce-mode";
 import { isCloudinaryImageUrl, storefrontImageLoader } from "@/lib/images";
-import { formatCurrency, getProductHref } from "@/lib/storefront";
+import { formatCurrency, getDiscountPercentage, getProductHref } from "@/lib/storefront";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -485,9 +485,27 @@ export function StoreHeader() {
                       <p className="mt-0.5 line-clamp-1 text-sm text-zinc-500">
                         {product.descripcion || "Sin descripcion disponible."}
                       </p>
-                      <p className="mt-1 text-base font-semibold text-black">
-                        {formatCurrency(product.precio)}
-                      </p>
+                      {ecommerceEnabled && product.tiene_promocion ? (
+                        <div className="mt-1 space-y-0.5">
+                          <p className="text-xs text-zinc-400 line-through">
+                            {formatCurrency(product.precio_lista)}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-base font-semibold text-black">
+                              {formatCurrency(product.precio)}
+                            </p>
+                            {getDiscountPercentage(product.precio_lista, product.precio) ? (
+                              <span className="rounded-full bg-black px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.16em] text-white">
+                                -{getDiscountPercentage(product.precio_lista, product.precio)}%
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="mt-1 text-base font-semibold text-black">
+                          {formatCurrency(product.precio)}
+                        </p>
+                      )}
                     </div>
                   </Link>
                 ) : (
@@ -523,9 +541,27 @@ export function StoreHeader() {
                       <p className="mt-0.5 line-clamp-1 text-sm text-zinc-500">
                         {product.descripcion || "Sin descripcion disponible."}
                       </p>
-                      <p className="mt-1 text-base font-semibold text-black">
-                        {formatCurrency(product.precio)}
-                      </p>
+                      {ecommerceEnabled && product.tiene_promocion ? (
+                        <div className="mt-1 space-y-0.5">
+                          <p className="text-xs text-zinc-400 line-through">
+                            {formatCurrency(product.precio_lista)}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-base font-semibold text-black">
+                              {formatCurrency(product.precio)}
+                            </p>
+                            {getDiscountPercentage(product.precio_lista, product.precio) ? (
+                              <span className="rounded-full bg-black px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.16em] text-white">
+                                -{getDiscountPercentage(product.precio_lista, product.precio)}%
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="mt-1 text-base font-semibold text-black">
+                          {formatCurrency(product.precio)}
+                        </p>
+                      )}
                     </div>
                   </button>
                 )}

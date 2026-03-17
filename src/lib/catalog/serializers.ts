@@ -41,6 +41,28 @@ function parseNumber(
   return Number.isNaN(numericValue) ? fallback : numericValue;
 }
 
+function resolveCommercialPrice(product: RawProductRecord): {
+  basePrice: number;
+  effectivePrice: number;
+  promoPrice: number | null;
+  hasPromotion: boolean;
+} {
+  const fallbackBasePrice = parseNumber(product.price, 0) ?? 0;
+  const basePrice = parseNumber(product.basePrice, fallbackBasePrice) ?? fallbackBasePrice;
+  const promoPrice = parseNumber(product.promoPrice, null);
+  const promoEnabled = product.promoEnabled === true;
+  const hasPromotion = Boolean(
+    promoEnabled && promoPrice !== null && promoPrice >= 0 && promoPrice < basePrice
+  );
+
+  return {
+    basePrice,
+    effectivePrice: hasPromotion ? promoPrice ?? basePrice : basePrice,
+    promoPrice: hasPromotion ? promoPrice : null,
+    hasPromotion,
+  };
+}
+
 function serializeProductVariants(product: RawProductRecord): ProductVariant[] {
   if (!Array.isArray(product.variants)) {
     return [];
@@ -84,6 +106,7 @@ export function serializeCategory(category: RawCategoryRecord): Category {
 }
 
 export function serializeProduct(product: RawProductRecord): Product {
+  const pricing = resolveCommercialPrice(product);
   const variants = serializeProductVariants(product);
   const measureOptions = Array.isArray(product.measureOptions) ? product.measureOptions : [];
   const measures = variants.length > 0 ? variants.map((variant) => variant.medida) : measureOptions;
@@ -97,7 +120,10 @@ export function serializeProduct(product: RawProductRecord): Product {
     id_producto: product.id,
     nombre: product.name || "",
     descripcion: product.description || "",
-    precio: parseNumber(product.price, 0) ?? 0,
+    precio: pricing.effectivePrice,
+    precio_lista: pricing.basePrice,
+    precio_promocional: pricing.promoPrice,
+    tiene_promocion: pricing.hasPromotion,
     id_categoria: product.categoryId || null,
     stock,
     tag: product.tag || null,
@@ -126,6 +152,9 @@ export function serializeProductSearchResult(product: Product): ProductSearchRes
     nombre: product.nombre,
     descripcion: product.descripcion,
     precio: product.precio,
+    precio_lista: product.precio_lista,
+    precio_promocional: product.precio_promocional,
+    tiene_promocion: product.tiene_promocion,
     id_categoria: product.id_categoria,
     stock: product.stock,
     medidas: product.medidas,

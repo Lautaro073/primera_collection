@@ -3,8 +3,9 @@ import Link from "next/link";
 import { ProductCardActions } from "@/components/storefront/ProductCardActions";
 import { ProductQuickViewTrigger } from "@/components/storefront/ProductQuickViewTrigger";
 import type { Product } from "@/types/domain";
+import { isEcommerceEnabled } from "@/lib/commerce-mode";
 import { getCloudinaryOptimizedImageUrl, isCloudinaryImageUrl } from "@/lib/images";
-import { formatCurrency, getProductHref } from "@/lib/storefront";
+import { formatCurrency, getDiscountPercentage, getProductHref } from "@/lib/storefront";
 
 interface ProductCardProps {
   product: Product;
@@ -18,6 +19,11 @@ export function ProductCard({
   interactiveMode = "link",
 }: ProductCardProps) {
   const productHref = getProductHref(product);
+  const ecommerceEnabled = isEcommerceEnabled();
+  const discountPercentage =
+    ecommerceEnabled && product.tiene_promocion
+      ? getDiscountPercentage(product.precio_lista, product.precio)
+      : null;
   const imageSrc =
     product.imagen && isCloudinaryImageUrl(product.imagen)
       ? getCloudinaryOptimizedImageUrl(product.imagen, 720, 60)
@@ -36,9 +42,20 @@ export function ProductCard({
 
       <div className="flex items-center justify-between gap-3">
         <div>
-          <span className="text-sm font-semibold text-black sm:text-base">
-            {formatCurrency(product.precio)}
-          </span>
+          {ecommerceEnabled && product.tiene_promocion ? (
+            <div className="space-y-0.5">
+              <p className="text-[10px] text-zinc-400 line-through sm:text-xs">
+                {formatCurrency(product.precio_lista)}
+              </p>
+              <span className="text-sm font-semibold text-black sm:text-base">
+                {formatCurrency(product.precio)}
+              </span>
+            </div>
+          ) : (
+            <span className="text-sm font-semibold text-black sm:text-base">
+              {formatCurrency(product.precio)}
+            </span>
+          )}
           <p className="text-[10px] leading-tight text-zinc-500">Precio de contado/efectivo*</p>
         </div>
         <span className="text-[11px] uppercase tracking-[0.18em] text-zinc-500 sm:text-xs">
@@ -64,6 +81,11 @@ export function ProductCard({
           Sin imagen
         </div>
       )}
+      {discountPercentage ? (
+        <span className="absolute left-3 top-3 inline-flex rounded-full bg-black px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-white sm:text-[11px]">
+          -{discountPercentage}%
+        </span>
+      ) : null}
     </div>
   );
 

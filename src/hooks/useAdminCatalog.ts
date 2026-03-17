@@ -172,6 +172,7 @@ const EMPTY_PRODUCT_FORM: ProductFormState = {
   nombre: "",
   descripcion: "",
   precio: "",
+  precio_promocional: "",
   id_categoria: "",
   stock: "",
   tag: "",
@@ -654,7 +655,11 @@ export function useAdminCatalog(): UseAdminCatalogResult {
     setProductForm({
       nombre: product.nombre || "",
       descripcion: product.descripcion || "",
-      precio: String(product.precio ?? ""),
+      precio: String(product.precio_lista ?? product.precio ?? ""),
+      precio_promocional:
+        product.precio_promocional !== null && product.precio_promocional !== undefined
+          ? String(product.precio_promocional)
+          : "",
       id_categoria: product.id_categoria || "",
       stock: String(product.stock ?? ""),
       tag: product.tag || "",
@@ -766,6 +771,7 @@ export function useAdminCatalog(): UseAdminCatalogResult {
           formData.set("nombre", productForm.nombre);
           formData.set("descripcion", productForm.descripcion);
           formData.set("precio", productForm.precio);
+          formData.set("precio_promocional", productForm.precio_promocional);
           formData.set("id_categoria", productForm.id_categoria);
           formData.set("stock", productForm.stock);
           formData.set("tag", productForm.tag);

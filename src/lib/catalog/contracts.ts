@@ -49,6 +49,9 @@ export function isProduct(value: unknown): value is Product {
     isString(value.nombre) &&
     isString(value.descripcion) &&
     typeof value.precio === "number" &&
+    typeof value.precio_lista === "number" &&
+    (value.precio_promocional === null || typeof value.precio_promocional === "number") &&
+    typeof value.tiene_promocion === "boolean" &&
     isNullableString(value.id_categoria) &&
     typeof value.stock === "number" &&
     isStringArray(value.medidas) &&
@@ -71,6 +74,9 @@ export function isProductSearchResult(value: unknown): value is ProductSearchRes
     isString(value.nombre) &&
     isString(value.descripcion) &&
     typeof value.precio === "number" &&
+    typeof value.precio_lista === "number" &&
+    (value.precio_promocional === null || typeof value.precio_promocional === "number") &&
+    typeof value.tiene_promocion === "boolean" &&
     isNullableString(value.id_categoria) &&
     typeof value.stock === "number" &&
     isStringArray(value.medidas) &&

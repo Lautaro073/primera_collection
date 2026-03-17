@@ -5,8 +5,9 @@ import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useRef, useState, type PointerEvent } from "react";
 import { AddToCartButton } from "@/components/storefront/AddToCartButton";
 import type { Product, ProductSearchResult } from "@/types/domain";
+import { isEcommerceEnabled } from "@/lib/commerce-mode";
 import { isCloudinaryImageUrl, storefrontImageLoader } from "@/lib/images";
-import { formatCurrency, getProductVariants, getVariantStock } from "@/lib/storefront";
+import { formatCurrency, getDiscountPercentage, getProductVariants, getVariantStock } from "@/lib/storefront";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -34,6 +35,11 @@ export function ProductQuickViewDialog({
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [selectedMeasure, setSelectedMeasure] = useState("");
+  const ecommerceEnabled = isEcommerceEnabled();
+  const discountPercentage =
+    ecommerceEnabled && product?.tiene_promocion
+      ? getDiscountPercentage(product.precio_lista, product.precio)
+      : null;
   const dragStateRef = useRef<{
     pointerId: number;
     startX: number;
@@ -299,7 +305,23 @@ export function ProductQuickViewDialog({
                 ) : null}
                 <DialogTitle className="text-3xl tracking-tight">{product.nombre}</DialogTitle>
                 <DialogDescription className="text-base font-semibold text-black">
-                  {formatCurrency(product.precio)}
+                  {ecommerceEnabled && product.tiene_promocion ? (
+                    <span className="flex flex-col gap-1">
+                      <span className="text-sm font-normal text-zinc-400 line-through">
+                        {formatCurrency(product.precio_lista)}
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <span>{formatCurrency(product.precio)}</span>
+                        {discountPercentage ? (
+                          <span className="inline-flex rounded-full bg-black px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.16em] text-white">
+                            -{discountPercentage}%
+                          </span>
+                        ) : null}
+                      </span>
+                    </span>
+                  ) : (
+                    formatCurrency(product.precio)
+                  )}
                   <span className="block text-xs font-normal text-zinc-500">Precio de contado/efectivo*</span>
                 </DialogDescription>
               </DialogHeader>

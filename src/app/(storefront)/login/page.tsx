@@ -1,11 +1,36 @@
+import { redirect } from "next/navigation";
 import { CustomerLoginForm } from "@/components/customer/CustomerLoginForm";
+import { StoreHeader } from "@/components/storefront/StoreHeader";
+import { readCustomerPageSession } from "@/lib/auth/customer-page";
+import {
+  DEFAULT_CUSTOMER_REDIRECT_PATH,
+  resolveCustomerNextPath,
+} from "@/lib/customer/navigation";
+import { STOREFRONT_PAGE_SHELL_CLASSNAME } from "@/lib/storefront-shell";
 
-export default function CustomerLoginPage() {
+interface CustomerLoginPageProps {
+  searchParams: Promise<{ next?: string | string[] }>;
+}
+
+export default async function CustomerLoginPage({
+  searchParams,
+}: CustomerLoginPageProps) {
+  const session = await readCustomerPageSession();
+  const resolvedSearchParams = await searchParams;
+  const nextPath = resolveCustomerNextPath(resolvedSearchParams.next);
+
+  if (session) {
+    redirect(nextPath || DEFAULT_CUSTOMER_REDIRECT_PATH);
+  }
+
   return (
-    <main className="min-h-screen bg-zinc-50 px-4 py-8 sm:px-6 sm:py-10">
-      <div className="mx-auto flex max-w-6xl justify-center">
-        <CustomerLoginForm />
-      </div>
-    </main>
+    <div className={STOREFRONT_PAGE_SHELL_CLASSNAME}>
+      <StoreHeader />
+      <main className="px-4 py-8 sm:px-6 sm:py-10">
+        <div className="mx-auto flex max-w-6xl justify-center">
+          <CustomerLoginForm nextPath={nextPath} />
+        </div>
+      </main>
+    </div>
   );
 }

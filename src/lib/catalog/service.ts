@@ -35,6 +35,8 @@ interface ProductInput {
   description?: unknown;
   precio?: unknown;
   price?: unknown;
+  precio_promocional?: unknown;
+  promoPrice?: unknown;
   id_categoria?: unknown;
   categoryId?: unknown;
   stock?: unknown;
@@ -65,6 +67,9 @@ interface NormalizedProductInput {
   name?: string;
   description?: string;
   price?: number;
+  basePrice?: number;
+  promoPrice?: number | null;
+  promoEnabled?: boolean;
   categoryId?: string;
   stock?: number;
   tag?: string | null;
@@ -273,6 +278,25 @@ function getProductVariantsStock(variants: RawProductVariantRecord[]): number {
   return variants.reduce((total, variant) => total + Number(variant.stock || 0), 0);
 }
 
+function resolvePersistedPricing(
+  basePrice: number,
+  promoPrice: number | null
+): {
+  basePrice: number;
+  effectivePrice: number;
+  promoEnabled: boolean;
+  promoPrice: number | null;
+} {
+  const hasPromotion = promoPrice !== null && promoPrice >= 0 && promoPrice < basePrice;
+
+  return {
+    basePrice,
+    effectivePrice: hasPromotion ? promoPrice ?? basePrice : basePrice,
+    promoEnabled: hasPromotion,
+    promoPrice: hasPromotion ? promoPrice : null,
+  };
+}
+
 function toComparableDate(value: FirebaseDateLike): number {
   if (!value) {
     return 0;
@@ -340,6 +364,8 @@ function normalizeProductInput(
   const hasDescription =
     input.descripcion !== undefined || input.description !== undefined;
   const hasPrice = input.precio !== undefined || input.price !== undefined;
+  const hasPromoPrice =
+    input.precio_promocional !== undefined || input.promoPrice !== undefined;
   const hasCategory =
     input.id_categoria !== undefined || input.categoryId !== undefined;
   const hasStock = input.stock !== undefined;
@@ -361,6 +387,7 @@ function normalizeProductInput(
     normalized.description = safeString(input.descripcion ?? input.description);
   }
 
+  let parsedBasePrice: number | undefined;
   if (!partial || hasPrice) {
     const price = parseNumber(input.precio ?? input.price);
 
@@ -368,7 +395,18 @@ function normalizeProductInput(
       throw createHttpError(400, "El precio del producto es invalido.");
     }
 
-    normalized.price = price;
+    parsedBasePrice = price;
+    normalized.basePrice = price;
+  }
+
+  if (!partial || hasPromoPrice) {
+    const promoPrice = parseNumber(input.precio_promocional ?? input.promoPrice, null);
+
+    if (promoPrice !== null && promoPrice < 0) {
+      throw createHttpError(400, "El precio promocional es invalido.");
+    }
+
+    normalized.promoPrice = promoPrice;
   }
 
   if (!partial || hasCategory) {
@@ -441,6 +479,16 @@ function normalizeProductInput(
     throw createHttpError(400, "No se enviaron datos para actualizar.");
   }
 
+  const nextBasePrice = parsedBasePrice ?? normalized.basePrice;
+
+  if (nextBasePrice !== undefined) {
+    const pricing = resolvePersistedPricing(nextBasePrice, normalized.promoPrice ?? null);
+    normalized.basePrice = pricing.basePrice;
+    normalized.price = pricing.effectivePrice;
+    normalized.promoEnabled = pricing.promoEnabled;
+    normalized.promoPrice = pricing.promoPrice;
+  }
+
   return normalized;
 }
 
@@ -479,6 +527,9 @@ function toRawProductRecord(id: string, data: DocumentData): RawProductRecord {
     name: safeString(data.name),
     description: safeString(data.description),
     price: parseNumber(data.price, 0),
+    basePrice: parseNumber(data.basePrice, parseNumber(data.price, 0)),
+    promoPrice: parseNumber(data.promoPrice, null),
+    promoEnabled: data.promoEnabled === true,
     categoryId: safeString(data.categoryId) || null,
     stock: parseNumber(data.stock, 0),
     tag: safeString(data.tag) || null,
@@ -1004,6 +1055,20 @@ export async function updateProduct(
   }
 
   const normalized = normalizeProductInput(input, { partial: true });
+  const effectiveBasePrice =
+    normalized.basePrice ?? parseNumber(existing.basePrice, parseNumber(existing.price, 0)) ?? 0;
+  const effectivePromoPrice =
+    normalized.promoPrice !== undefined
+      ? normalized.promoPrice
+      : parseNumber(existing.promoPrice, null);
+  const pricing = resolvePersistedPricing(effectiveBasePrice, effectivePromoPrice);
+
+  if (normalized.basePrice !== undefined || normalized.promoPrice !== undefined) {
+    normalized.basePrice = pricing.basePrice;
+    normalized.price = pricing.effectivePrice;
+    normalized.promoEnabled = pricing.promoEnabled;
+    normalized.promoPrice = pricing.promoPrice;
+  }
   const hasExistingImagesPayload =
     input.existing_images !== undefined || input.existingImages !== undefined;
   const retainedExistingImages = normalizeExistingProductImages(

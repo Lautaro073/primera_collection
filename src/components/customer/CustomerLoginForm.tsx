@@ -9,11 +9,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DEFAULT_CUSTOMER_REDIRECT_PATH } from "@/lib/customer/navigation";
 import { getFirebaseClientAuth } from "@/lib/firebase/auth";
 import { persistCustomerSession } from "@/lib/customer/client";
 import { isErrorWithMessage } from "@/types/shared";
 
-export function CustomerLoginForm() {
+interface CustomerLoginFormProps {
+  nextPath?: string;
+}
+
+export function CustomerLoginForm({
+  nextPath = DEFAULT_CUSTOMER_REDIRECT_PATH,
+}: CustomerLoginFormProps) {
   const router = useRouter();
   const [auth, setAuth] = useState<Auth | null>(null);
   const [booting, setBooting] = useState(true);
@@ -37,7 +44,7 @@ export function CustomerLoginForm() {
           }
 
           await persistCustomerSession(user);
-          router.replace("/mi-cuenta");
+          router.replace(nextPath);
         });
       } catch (currentError: unknown) {
         setError(
@@ -50,7 +57,7 @@ export function CustomerLoginForm() {
     })();
 
     return () => unsubscribe();
-  }, [router]);
+  }, [nextPath, router]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -66,7 +73,7 @@ export function CustomerLoginForm() {
     try {
       const credentials = await signInWithEmailAndPassword(auth, email.trim(), password);
       await persistCustomerSession(credentials.user);
-      router.replace("/mi-cuenta");
+      router.replace(nextPath);
     } catch {
       setError("No se pudo iniciar sesion. Revisa email y password.");
     } finally {
@@ -132,7 +139,14 @@ export function CustomerLoginForm() {
           </Button>
 
           <div className="text-center text-sm text-zinc-600">
-            <Link href="/registro" className="font-medium text-black underline underline-offset-4">
+            <Link
+              href={
+                nextPath !== DEFAULT_CUSTOMER_REDIRECT_PATH
+                  ? `/registro?next=${encodeURIComponent(nextPath)}`
+                  : "/registro"
+              }
+              className="font-medium text-black underline underline-offset-4"
+            >
               Crear cuenta nueva
             </Link>
           </div>

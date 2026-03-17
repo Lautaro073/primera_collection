@@ -103,6 +103,9 @@ function serializeCartItem(
     stock,
     nombre: product.nombre,
     precio: product.precio,
+    precio_lista: product.precio_lista,
+    precio_promocional: product.precio_promocional,
+    tiene_promocion: product.tiene_promocion,
     tag: product.tag,
     imagen: product.imagen,
   };

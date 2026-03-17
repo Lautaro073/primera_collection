@@ -13,6 +13,8 @@ interface CustomerAddressFormProps {
   initialAddress?: CustomerAddress | null;
   onCancel: () => void;
   onSaved: (address: CustomerAddress) => void;
+  description?: string;
+  title?: string;
 }
 
 interface CustomerAddressFormState {
@@ -47,6 +49,8 @@ export function CustomerAddressForm({
   initialAddress = null,
   onCancel,
   onSaved,
+  description,
+  title,
 }: CustomerAddressFormProps) {
   const [form, setForm] = useState<CustomerAddressFormState>(buildInitialState(initialAddress));
   const [error, setError] = useState("");
@@ -110,10 +114,10 @@ export function CustomerAddressForm({
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-medium text-black">
-            {isEditing ? "Editar direccion" : "Nueva direccion"}
+            {title || (isEditing ? "Editar direccion" : "Nueva direccion")}
           </p>
           <p className="text-sm text-zinc-500">
-            Guarda direcciones listas para usar en checkout.
+            {description || "Guardá una dirección para usarla cuando quieras."}
           </p>
         </div>
 

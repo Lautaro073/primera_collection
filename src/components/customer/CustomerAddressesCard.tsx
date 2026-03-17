@@ -120,7 +120,7 @@ export function CustomerAddressesCard({ initialAddresses }: CustomerAddressesCar
           <div>
             <CardTitle>Direcciones</CardTitle>
             <CardDescription>
-              Guarda direcciones para preparar el checkout y los envios.
+              Añade tus direcciones para los envios.
             </CardDescription>
           </div>
 

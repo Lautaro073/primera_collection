@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
-import { notFound, redirect } from "next/navigation";
-import { readCustomerPageSession } from "@/lib/auth/customer-page";
+import { notFound } from "next/navigation";
 import { isUserAccountsEnabled } from "@/lib/commerce-mode";
 
 export default async function CustomerLoginLayout({
@@ -10,12 +9,6 @@ export default async function CustomerLoginLayout({
 }) {
   if (!isUserAccountsEnabled()) {
     notFound();
-  }
-
-  const session = await readCustomerPageSession();
-
-  if (session) {
-    redirect("/mi-cuenta");
   }
 
   return children;

@@ -9,11 +9,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DEFAULT_CUSTOMER_REDIRECT_PATH } from "@/lib/customer/navigation";
 import { getFirebaseClientAuth } from "@/lib/firebase/auth";
 import { persistCustomerSession, registerCustomerAccount } from "@/lib/customer/client";
 import { isErrorWithMessage } from "@/types/shared";
 
-export function CustomerRegisterForm() {
+interface CustomerRegisterFormProps {
+  nextPath?: string;
+}
+
+export function CustomerRegisterForm({
+  nextPath = DEFAULT_CUSTOMER_REDIRECT_PATH,
+}: CustomerRegisterFormProps) {
   const router = useRouter();
   const [auth, setAuth] = useState<Auth | null>(null);
   const [booting, setBooting] = useState(true);
@@ -49,7 +56,7 @@ export function CustomerRegisterForm() {
           }
 
           await persistCustomerSession(user);
-          router.replace("/mi-cuenta");
+          router.replace(nextPath);
         });
       } catch (currentError: unknown) {
         setError(
@@ -62,7 +69,7 @@ export function CustomerRegisterForm() {
     })();
 
     return () => unsubscribe();
-  }, [router]);
+  }, [nextPath, router]);
 
   function updateField(field: keyof typeof form, value: string): void {
     setForm((current) => ({
@@ -102,7 +109,7 @@ export function CustomerRegisterForm() {
         dni: form.dni,
       });
 
-      router.replace("/mi-cuenta");
+      router.replace(nextPath);
     } catch {
       setError("No se pudo crear la cuenta. Revisa los datos e intenta de nuevo.");
     } finally {
@@ -231,7 +238,14 @@ export function CustomerRegisterForm() {
           </Button>
 
           <div className="text-center text-sm text-zinc-600">
-            <Link href="/login" className="font-medium text-black underline underline-offset-4">
+            <Link
+              href={
+                nextPath !== DEFAULT_CUSTOMER_REDIRECT_PATH
+                  ? `/login?next=${encodeURIComponent(nextPath)}`
+                  : "/login"
+              }
+              className="font-medium text-black underline underline-offset-4"
+            >
               Acceso para cuentas existentes
             </Link>
           </div>

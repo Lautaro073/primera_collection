@@ -203,6 +203,7 @@ Despues de asignar el claim, el usuario debe cerrar sesion y volver a entrar.
 - `/login` *(solo modo ecommerce con cuentas activas)*
 - `/registro` *(solo modo ecommerce con cuentas activas)*
 - `/mi-cuenta` *(solo modo ecommerce con cuentas activas)*
+- `/checkout` *(solo modo ecommerce con checkout activo)*
 
 ### Admin
 
@@ -260,10 +261,17 @@ Notas:
 
 - `POST /api/session/cart` ahora es el punto recomendado para inicializar o restaurar carrito
 - si el cliente inicia sesion, el carrito anonimo puede sincronizarse con el carrito del usuario autenticado
+- el checkout usa una `checkout_session` server-side con resumen, direccion y envio estimado
+- las cotizaciones de envio intentan usar Correo Argentino real y, si falla o falta configuracion, vuelven a fallback estimado
 
 ### Checkout / ordenes
 
 - `POST /api/checkout`
+- `POST /api/checkout/session`
+- `POST /api/checkout/session/:sessionId/refresh`
+- `PUT /api/checkout/session/:sessionId/shipping`
+- `POST /api/orders/confirm`
+- `POST /api/shipping/estimate`
 - `GET /api/ordenes/:id_user`
 - `POST /api/ordenes/:id_user`
 - `GET /api/ordenes/detalles/:id_orden`
@@ -298,7 +306,22 @@ Pendientes naturales:
 
 - cuentas de usuario para modo ecommerce
 - stock por variante/talle
-- descuentos, checkout y pagos reales para modo ecommerce
+- descuentos avanzados, pagos reales e integracion completa de sucursales de Correo Argentino
+
+## Correo Argentino
+
+Variables base para cotizacion real:
+
+```env
+MICORREO_BASE_URL=https://api.correoargentino.com.ar/micorreo/v1
+MICORREO_USERNAME=
+MICORREO_PASSWORD=
+MICORREO_CUSTOMER_ID=
+MICORREO_TIMEOUT_MS=8000
+MICORREO_TOKEN_SKEW_SECONDS=60
+```
+
+Si faltan credenciales o la API falla, el sistema conserva el fallback estimado para no romper el checkout.
 
 ## Roadmap ecommerce
 

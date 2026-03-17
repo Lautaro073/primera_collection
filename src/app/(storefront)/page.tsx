@@ -2,6 +2,7 @@ import { listAllProducts, listCategories } from "@/lib/catalog/service";
 import { EmptyCatalogState } from "@/components/storefront/EmptyCatalogState";
 import { ProductGridWithQuickView } from "@/components/storefront/ProductGridWithQuickView";
 import { StoreHeader } from "@/components/storefront/StoreHeader";
+import { isEcommerceEnabled } from "@/lib/commerce-mode";
 import type { Product } from "@/types/domain";
 
 export const revalidate = 300;
@@ -23,6 +24,7 @@ export default async function Home() {
     listCategories(),
     listAllProducts(),
   ]);
+  const ecommerceEnabled = isEcommerceEnabled();
 
   const categoryNameById = categories.reduce<Record<string, string>>((accumulator, category) => {
     accumulator[category.id_categoria] = category.nombre_categoria;
@@ -31,6 +33,9 @@ export default async function Home() {
   const tagSections = new Map<string, ProductTagSection>();
   const productsByCategoryId = new Map<string, Product[]>();
   const untaggedProducts: Product[] = [];
+  const discountedProducts = ecommerceEnabled
+    ? products.filter((product) => product.tiene_promocion)
+    : [];
 
   for (const product of products) {
     if (product.id_categoria) {
@@ -79,10 +84,38 @@ export default async function Home() {
       <main className="mx-auto flex max-w-6xl flex-col gap-14 px-4 py-8 sm:px-6 sm:py-10">
         {products.length > 0 ? (
           <>
+            {discountedProducts.length > 0 ? (
+              <section id="ofertas" className="space-y-5">
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
+                    Descuentos
+                  </p>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <h2 className="text-2xl font-semibold tracking-tight">Ofertas</h2>
+                      <p className="text-sm text-zinc-500">
+                        Productos seleccionados con precio especial por tiempo limitado.
+                      </p>
+                    </div>
+                    <span className="inline-flex w-fit rounded-full border border-zinc-300 bg-white px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-600">
+                      {discountedProducts.length === 1
+                        ? "1 producto con descuento"
+                        : `${discountedProducts.length} productos con descuento`}
+                    </span>
+                  </div>
+                </div>
+
+                <ProductGridWithQuickView
+                  products={discountedProducts}
+                  categoryNameById={categoryNameById}
+                />
+              </section>
+            ) : null}
+
             {Array.from(tagSections.values()).map((section, index) => (
               <section
                 key={section.label}
-                id={index === 0 ? "catalogo" : undefined}
+                id={index === 0 && discountedProducts.length === 0 ? "catalogo" : undefined}
                 className="space-y-5"
               >
                 <div className="space-y-2">

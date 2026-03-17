@@ -1,7 +1,15 @@
 import { createHttpError } from "@/lib/api/errors";
+import { getCheckoutSessionById } from "@/lib/checkout/service";
 import { getFirebaseAdminDb } from "@/lib/firebase/admin";
 import { getProductById } from "@/lib/catalog/service";
-import type { FirebaseDateLike } from "@/types/domain";
+import type {
+  CheckoutSessionItem,
+  CheckoutSessionPricing,
+  CheckoutSessionShipping,
+  CustomerAddress,
+  FirebaseDateLike,
+  OrderSummary,
+} from "@/types/domain";
 
 interface OrderRecord {
   id: string;
@@ -9,6 +17,21 @@ interface OrderRecord {
   createdAt: FirebaseDateLike;
   status?: string;
   total?: number;
+}
+
+interface EcommerceOrderRecord {
+  cartId: string;
+  checkoutSessionId: string;
+  createdAt: FirebaseDateLike;
+  customerUid: string;
+  fulfillmentStatus: "unfulfilled";
+  items: CheckoutSessionItem[];
+  paymentStatus: "unpaid";
+  pricing: CheckoutSessionPricing;
+  shipping: CheckoutSessionShipping;
+  addressSnapshot: CustomerAddress | null;
+  status: "pending_confirmation" | "confirmed" | "cancelled";
+  updatedAt: FirebaseDateLike;
 }
 
 interface OrderItemInput {
@@ -102,6 +125,27 @@ function serializeOrderDetail(orderId: string, item: NormalizedOrderItem, index:
     precio_unitario: item.precio_unitario,
     nombre: item.nombre || "",
     imagen: item.imagen || null,
+  };
+}
+
+function serializeEcommerceOrder(
+  orderId: string,
+  record: EcommerceOrderRecord
+): OrderSummary {
+  return {
+    id_orden: orderId,
+    customer_uid: record.customerUid,
+    checkout_session_id: record.checkoutSessionId,
+    cart_id: record.cartId,
+    status: record.status,
+    payment_status: record.paymentStatus,
+    fulfillment_status: record.fulfillmentStatus,
+    items: record.items,
+    pricing: record.pricing,
+    shipping: record.shipping,
+    address: record.addressSnapshot,
+    created_at: toIsoString(record.createdAt),
+    updated_at: toIsoString(record.updatedAt),
   };
 }
 
@@ -226,4 +270,150 @@ export async function createCheckout(payload: CheckoutPayload) {
     id_checkout: ref.id,
     message: "Checkout realizado con exito.",
   };
+}
+
+export async function getOrderByIdForCustomer(
+  customerUid: string,
+  orderId: string
+): Promise<OrderSummary> {
+  const normalizedCustomerUid = ensureString(customerUid, "El cliente es requerido.");
+  const normalizedOrderId = ensureString(orderId, "La orden es requerida.");
+  const db = getFirebaseAdminDb();
+  const orderDoc = await db.collection("orders").doc(normalizedOrderId).get();
+
+  if (!orderDoc.exists) {
+    throw createHttpError(404, "Orden no encontrada.");
+  }
+
+  const order = orderDoc.data() as EcommerceOrderRecord;
+
+  if (order.customerUid !== normalizedCustomerUid) {
+    throw createHttpError(404, "Orden no encontrada.");
+  }
+
+  return serializeEcommerceOrder(orderDoc.id, order);
+}
+
+export async function listOrdersByCustomer(
+  customerUid: string
+): Promise<OrderSummary[]> {
+  const normalizedCustomerUid = ensureString(customerUid, "El cliente es requerido.");
+  const db = getFirebaseAdminDb();
+  const snapshot = await db.collection("orders").where("customerUid", "==", normalizedCustomerUid).get();
+
+  return snapshot.docs
+    .map((doc) => serializeEcommerceOrder(doc.id, doc.data() as EcommerceOrderRecord))
+    .sort(
+      (left, right) =>
+        new Date(right.created_at || 0).getTime() - new Date(left.created_at || 0).getTime(),
+    );
+}
+
+export async function createOrderFromCheckoutSession(
+  customerUid: string,
+  checkoutSessionId: string
+): Promise<OrderSummary> {
+  const normalizedCustomerUid = ensureString(customerUid, "El cliente es requerido.");
+  const normalizedCheckoutSessionId = ensureString(
+    checkoutSessionId,
+    "La sesion de checkout es requerida."
+  );
+  const checkoutSession = await getCheckoutSessionById(
+    normalizedCustomerUid,
+    normalizedCheckoutSessionId
+  );
+
+  if (checkoutSession.status === "converted" && checkoutSession.order_id) {
+    return getOrderByIdForCustomer(normalizedCustomerUid, checkoutSession.order_id);
+  }
+
+  if (checkoutSession.status === "expired") {
+    throw createHttpError(400, "La sesion de checkout ya expiro.");
+  }
+
+  if (checkoutSession.items.length === 0) {
+    throw createHttpError(400, "La sesion de checkout no tiene items.");
+  }
+
+  if (
+    checkoutSession.shipping.fulfillment_type === "shipping" &&
+    checkoutSession.shipping.requires_address &&
+    !checkoutSession.address
+  ) {
+    throw createHttpError(400, "Completa una direccion antes de confirmar el pedido.");
+  }
+
+  if (
+    checkoutSession.shipping.fulfillment_type === "shipping" &&
+    checkoutSession.shipping.quotes.length > 0 &&
+    !checkoutSession.shipping.selected_quote
+  ) {
+    throw createHttpError(400, "Selecciona una opcion de envio antes de confirmar el pedido.");
+  }
+
+  const db = getFirebaseAdminDb();
+  const orderRef = db.collection("orders").doc();
+  const sessionRef = db.collection("checkout_sessions").doc(normalizedCheckoutSessionId);
+  const now = new Date();
+  const orderRecord: EcommerceOrderRecord = {
+    cartId: checkoutSession.cart_id,
+    checkoutSessionId: normalizedCheckoutSessionId,
+    createdAt: now,
+    customerUid: normalizedCustomerUid,
+    fulfillmentStatus: "unfulfilled",
+    items: checkoutSession.items,
+    paymentStatus: "unpaid",
+    pricing: checkoutSession.pricing,
+    shipping: checkoutSession.shipping,
+    addressSnapshot: checkoutSession.address,
+    status: "pending_confirmation",
+    updatedAt: now,
+  };
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      const sessionDoc = await transaction.get(sessionRef);
+
+      if (!sessionDoc.exists) {
+        throw createHttpError(404, "Sesion de checkout no encontrada.");
+      }
+
+      const sessionData = sessionDoc.data() as {
+        customerUid?: string;
+        orderId?: string | null;
+        status?: string;
+      };
+
+      if (sessionData.customerUid !== normalizedCustomerUid) {
+        throw createHttpError(404, "Sesion de checkout no encontrada.");
+      }
+
+      if (sessionData.status === "converted" && sessionData.orderId) {
+        throw createHttpError(409, sessionData.orderId);
+      }
+
+      transaction.set(orderRef, orderRecord);
+      transaction.set(
+        sessionRef,
+        {
+          orderId: orderRef.id,
+          status: "converted",
+          updatedAt: now,
+        },
+        { merge: true }
+      );
+    });
+  } catch (error: unknown) {
+    if (
+      error instanceof Error &&
+      "statusCode" in error &&
+      (error as { statusCode?: number }).statusCode === 409
+    ) {
+      return getOrderByIdForCustomer(normalizedCustomerUid, error.message);
+    }
+
+    throw error;
+  }
+
+  return serializeEcommerceOrder(orderRef.id, orderRecord);
 }

@@ -8,6 +8,26 @@ export function formatCurrency(value: number): string {
   }).format(value);
 }
 
+export function getDiscountPercentage(
+  basePrice: number,
+  effectivePrice: number | null | undefined
+): number | null {
+  if (!Number.isFinite(basePrice) || basePrice <= 0) {
+    return null;
+  }
+
+  if (!Number.isFinite(effectivePrice) || effectivePrice === null || effectivePrice === undefined) {
+    return null;
+  }
+
+  if (effectivePrice >= basePrice) {
+    return null;
+  }
+
+  const percentage = Math.round(((basePrice - effectivePrice) / basePrice) * 100);
+  return percentage > 0 ? percentage : null;
+}
+
 export function getCategoryHref(category: Pick<Category, "slug" | "nombre_categoria">): string {
   const segment = category.slug || category.nombre_categoria;
   return `/categoria/${encodeURIComponent(segment)}`;

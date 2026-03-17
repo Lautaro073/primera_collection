@@ -6,6 +6,7 @@ import { Breadcrumbs } from "@/components/storefront/Breadcrumbs";
 import { ProductCard } from "@/components/storefront/ProductCard";
 import { ProductPurchasePanel } from "@/components/storefront/ProductPurchasePanel";
 import { StoreHeader } from "@/components/storefront/StoreHeader";
+import { isEcommerceEnabled } from "@/lib/commerce-mode";
 import { getCloudinaryOptimizedImageUrl, isCloudinaryImageUrl } from "@/lib/images";
 import {
   getProductById,
@@ -13,7 +14,7 @@ import {
   listCategories,
   listRelatedProducts,
 } from "@/lib/catalog/service";
-import { formatCurrency, getCategoryHref, getProductHref } from "@/lib/storefront";
+import { formatCurrency, getCategoryHref, getDiscountPercentage, getProductHref } from "@/lib/storefront";
 import type { RouteContext } from "@/types/next";
 
 interface ProductPageParams {
@@ -85,6 +86,11 @@ export default async function ProductPage(
 
   const category =
     categories.find((item) => item.id_categoria === product.id_categoria) || null;
+  const ecommerceEnabled = isEcommerceEnabled();
+  const discountPercentage =
+    ecommerceEnabled && product.tiene_promocion
+      ? getDiscountPercentage(product.precio_lista, product.precio)
+      : null;
   const relatedProducts = await listRelatedProducts(
     product.id_producto,
     product.id_categoria,
@@ -146,9 +152,25 @@ export default async function ProductPage(
                 <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
                   {product.nombre}
                 </h1>
-                <p className="text-2xl font-semibold">
-                  {formatCurrency(product.precio)}
-                </p>
+                {ecommerceEnabled && product.tiene_promocion ? (
+                  <div className="space-y-1">
+                    <p className="text-sm text-zinc-400 line-through">
+                      {formatCurrency(product.precio_lista)}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-2xl font-semibold">{formatCurrency(product.precio)}</p>
+                      {discountPercentage ? (
+                        <span className="inline-flex rounded-full bg-black px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-white">
+                          -{discountPercentage}%
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-2xl font-semibold">
+                    {formatCurrency(product.precio)}
+                  </p>
+                )}
               </div>
 
               <p className="text-sm leading-7 text-zinc-600">
