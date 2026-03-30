@@ -2,7 +2,6 @@ import { listAllProducts, listCategories } from "@/lib/catalog/service";
 import { EmptyCatalogState } from "@/components/storefront/EmptyCatalogState";
 import { ProductGridWithQuickView } from "@/components/storefront/ProductGridWithQuickView";
 import { StoreHeader } from "@/components/storefront/StoreHeader";
-import { isEcommerceEnabled } from "@/lib/commerce-mode";
 import type { Product } from "@/types/domain";
 
 export const revalidate = 300;
@@ -24,7 +23,6 @@ export default async function Home() {
     listCategories(),
     listAllProducts(),
   ]);
-  const ecommerceEnabled = isEcommerceEnabled();
 
   const categoryNameById = categories.reduce<Record<string, string>>((accumulator, category) => {
     accumulator[category.id_categoria] = category.nombre_categoria;
@@ -33,9 +31,7 @@ export default async function Home() {
   const tagSections = new Map<string, ProductTagSection>();
   const productsByCategoryId = new Map<string, Product[]>();
   const untaggedProducts: Product[] = [];
-  const discountedProducts = ecommerceEnabled
-    ? products.filter((product) => product.tiene_promocion)
-    : [];
+  const discountedProducts = products.filter((product) => product.tiene_promocion);
 
   for (const product of products) {
     if (product.id_categoria) {

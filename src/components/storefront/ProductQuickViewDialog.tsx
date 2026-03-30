@@ -5,7 +5,6 @@ import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useRef, useState, type PointerEvent } from "react";
 import { AddToCartButton } from "@/components/storefront/AddToCartButton";
 import type { Product, ProductSearchResult } from "@/types/domain";
-import { isEcommerceEnabled } from "@/lib/commerce-mode";
 import { isCloudinaryImageUrl, storefrontImageLoader } from "@/lib/images";
 import { formatCurrency, getDiscountPercentage, getProductVariants, getVariantStock } from "@/lib/storefront";
 import { Button } from "@/components/ui/button";
@@ -35,9 +34,8 @@ export function ProductQuickViewDialog({
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [selectedMeasure, setSelectedMeasure] = useState("");
-  const ecommerceEnabled = isEcommerceEnabled();
   const discountPercentage =
-    ecommerceEnabled && product?.tiene_promocion
+    product?.tiene_promocion
       ? getDiscountPercentage(product.precio_lista, product.precio)
       : null;
   const dragStateRef = useRef<{
@@ -305,7 +303,7 @@ export function ProductQuickViewDialog({
                 ) : null}
                 <DialogTitle className="text-3xl tracking-tight">{product.nombre}</DialogTitle>
                 <DialogDescription className="text-base font-semibold text-black">
-                  {ecommerceEnabled && product.tiene_promocion ? (
+                  {product.tiene_promocion ? (
                     <span className="flex flex-col gap-1">
                       <span className="text-sm font-normal text-zinc-400 line-through">
                         {formatCurrency(product.precio_lista)}

@@ -113,7 +113,7 @@ export function ProductPanel({
   const basePrice = Number(productForm.precio);
   const promoPrice = Number(productForm.precio_promocional);
   const discountPercentage =
-    ecommerceEnabled && productForm.precio_promocional !== ""
+    productForm.precio_promocional !== ""
       ? getDiscountPercentage(basePrice, promoPrice)
       : null;
   const productMeasures = (product: Product) =>
@@ -223,9 +223,7 @@ export function ProductPanel({
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="product-price">
-                    {ecommerceEnabled ? "Precio base" : "Precio"}
-                  </Label>
+                  <Label htmlFor="product-price">Precio base</Label>
                   <Input
                     id="product-price"
                     type="number"
@@ -235,35 +233,31 @@ export function ProductPanel({
                     onChange={handleTextField("precio")}
                     required
                   />
-                  {ecommerceEnabled ? (
-                    <p className="text-xs text-zinc-500">
-                      Precio regular del producto antes de promociones.
-                    </p>
-                  ) : null}
+                  <p className="text-xs text-zinc-500">
+                    Precio regular del producto antes de promociones.
+                  </p>
                 </div>
 
-                {ecommerceEnabled ? (
-                  <div className="space-y-2">
-                    <Label htmlFor="product-promo-price">Precio promocional</Label>
-                    <Input
-                      id="product-promo-price"
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={productForm.precio_promocional}
-                      onChange={handleTextField("precio_promocional")}
-                      placeholder="Opcional"
-                    />
-                    <p className="text-xs text-zinc-500">
-                      Si se completa y es menor al precio base, se usa como precio visible.
-                    </p>
-                    {discountPercentage ? (
-                      <div className="inline-flex items-center rounded-full bg-black px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-white">
-                        {discountPercentage}% OFF
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
+                <div className="space-y-2">
+                  <Label htmlFor="product-promo-price">Precio promocional</Label>
+                  <Input
+                    id="product-promo-price"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={productForm.precio_promocional}
+                    onChange={handleTextField("precio_promocional")}
+                    placeholder="Opcional"
+                  />
+                  <p className="text-xs text-zinc-500">
+                    Si se completa y es menor al precio base, se usa como precio visible.
+                  </p>
+                  {discountPercentage ? (
+                    <div className="inline-flex items-center rounded-full bg-black px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-white">
+                      {discountPercentage}% OFF
+                    </div>
+                  ) : null}
+                </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="product-stock">
@@ -665,7 +659,7 @@ export function ProductPanel({
                       <TableCell className="text-center">
                         <div className="space-y-0.5">
                           <div>${product.precio}</div>
-                          {ecommerceEnabled && product.tiene_promocion ? (
+                          {product.tiene_promocion ? (
                             <div className="space-y-0.5">
                               <div className="text-xs text-zinc-500 line-through">
                                 ${product.precio_lista}

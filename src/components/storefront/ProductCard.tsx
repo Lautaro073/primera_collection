@@ -3,7 +3,6 @@ import Link from "next/link";
 import { ProductCardActions } from "@/components/storefront/ProductCardActions";
 import { ProductQuickViewTrigger } from "@/components/storefront/ProductQuickViewTrigger";
 import type { Product } from "@/types/domain";
-import { isEcommerceEnabled } from "@/lib/commerce-mode";
 import { getCloudinaryOptimizedImageUrl, isCloudinaryImageUrl } from "@/lib/images";
 import { formatCurrency, getDiscountPercentage, getProductHref } from "@/lib/storefront";
 
@@ -19,9 +18,8 @@ export function ProductCard({
   interactiveMode = "link",
 }: ProductCardProps) {
   const productHref = getProductHref(product);
-  const ecommerceEnabled = isEcommerceEnabled();
   const discountPercentage =
-    ecommerceEnabled && product.tiene_promocion
+    product.tiene_promocion
       ? getDiscountPercentage(product.precio_lista, product.precio)
       : null;
   const imageSrc =
@@ -42,7 +40,7 @@ export function ProductCard({
 
       <div className="flex items-center justify-between gap-3">
         <div>
-          {ecommerceEnabled && product.tiene_promocion ? (
+          {product.tiene_promocion ? (
             <div className="space-y-0.5">
               <p className="text-[10px] text-zinc-400 line-through sm:text-xs">
                 {formatCurrency(product.precio_lista)}

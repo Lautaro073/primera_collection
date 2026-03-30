@@ -485,7 +485,7 @@ export function StoreHeader() {
                       <p className="mt-0.5 line-clamp-1 text-sm text-zinc-500">
                         {product.descripcion || "Sin descripcion disponible."}
                       </p>
-                      {ecommerceEnabled && product.tiene_promocion ? (
+                      {product.tiene_promocion ? (
                         <div className="mt-1 space-y-0.5">
                           <p className="text-xs text-zinc-400 line-through">
                             {formatCurrency(product.precio_lista)}
@@ -541,7 +541,7 @@ export function StoreHeader() {
                       <p className="mt-0.5 line-clamp-1 text-sm text-zinc-500">
                         {product.descripcion || "Sin descripcion disponible."}
                       </p>
-                      {ecommerceEnabled && product.tiene_promocion ? (
+                      {product.tiene_promocion ? (
                         <div className="mt-1 space-y-0.5">
                           <p className="text-xs text-zinc-400 line-through">
                             {formatCurrency(product.precio_lista)}

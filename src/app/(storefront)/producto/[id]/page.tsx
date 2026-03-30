@@ -6,7 +6,6 @@ import { Breadcrumbs } from "@/components/storefront/Breadcrumbs";
 import { ProductCard } from "@/components/storefront/ProductCard";
 import { ProductPurchasePanel } from "@/components/storefront/ProductPurchasePanel";
 import { StoreHeader } from "@/components/storefront/StoreHeader";
-import { isEcommerceEnabled } from "@/lib/commerce-mode";
 import { getCloudinaryOptimizedImageUrl, isCloudinaryImageUrl } from "@/lib/images";
 import {
   getProductById,
@@ -86,9 +85,8 @@ export default async function ProductPage(
 
   const category =
     categories.find((item) => item.id_categoria === product.id_categoria) || null;
-  const ecommerceEnabled = isEcommerceEnabled();
   const discountPercentage =
-    ecommerceEnabled && product.tiene_promocion
+    product.tiene_promocion
       ? getDiscountPercentage(product.precio_lista, product.precio)
       : null;
   const relatedProducts = await listRelatedProducts(
@@ -152,7 +150,7 @@ export default async function ProductPage(
                 <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
                   {product.nombre}
                 </h1>
-                {ecommerceEnabled && product.tiene_promocion ? (
+                {product.tiene_promocion ? (
                   <div className="space-y-1">
                     <p className="text-sm text-zinc-400 line-through">
                       {formatCurrency(product.precio_lista)}
