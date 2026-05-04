@@ -1,4 +1,4 @@
-import type { Category, Product } from "@/types/domain";
+import type { Category, Product, ProductSearchResult, ProductVariant } from "@/types/domain";
 
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat("es-AR", {
@@ -8,6 +8,26 @@ export function formatCurrency(value: number): string {
   }).format(value);
 }
 
+export function getDiscountPercentage(
+  basePrice: number,
+  effectivePrice: number | null | undefined
+): number | null {
+  if (!Number.isFinite(basePrice) || basePrice <= 0) {
+    return null;
+  }
+
+  if (!Number.isFinite(effectivePrice) || effectivePrice === null || effectivePrice === undefined) {
+    return null;
+  }
+
+  if (effectivePrice >= basePrice) {
+    return null;
+  }
+
+  const percentage = Math.round(((basePrice - effectivePrice) / basePrice) * 100);
+  return percentage > 0 ? percentage : null;
+}
+
 export function getCategoryHref(category: Pick<Category, "slug" | "nombre_categoria">): string {
   const segment = category.slug || category.nombre_categoria;
   return `/categoria/${encodeURIComponent(segment)}`;
@@ -15,4 +35,30 @@ export function getCategoryHref(category: Pick<Category, "slug" | "nombre_catego
 
 export function getProductHref(product: Pick<Product, "id_producto">): string {
   return `/producto/${encodeURIComponent(product.id_producto)}`;
+}
+
+type ProductWithVariants = Pick<Product, "medidas" | "variantes" | "stock"> | Pick<ProductSearchResult, "medidas" | "variantes" | "stock">;
+
+export function getProductVariants(product: ProductWithVariants): ProductVariant[] {
+  if (product.variantes.length > 0) {
+    return product.variantes;
+  }
+
+  return product.medidas.map((medida) => ({
+    medida,
+    stock: product.stock,
+    sku: null,
+  }));
+}
+
+export function getVariantStock(
+  product: ProductWithVariants,
+  selectedMeasure: string | null | undefined
+): number {
+  if (!selectedMeasure) {
+    return product.stock;
+  }
+
+  const variant = getProductVariants(product).find((item) => item.medida === selectedMeasure);
+  return variant ? variant.stock : 0;
 }

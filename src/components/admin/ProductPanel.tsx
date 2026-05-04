@@ -1,8 +1,13 @@
-/* eslint-disable @next/next/no-img-element */
-
+import Image from "next/image";
 import { useRef, useState, type ChangeEvent, type DragEvent, type FormEvent } from "react";
 import { Check, FileImage, LoaderCircle, Pencil, Plus, Save, Search, Trash2 } from "lucide-react";
-import type { Product, ProductFormState, Category, ProductImageAsset } from "@/types/domain";
+import type {
+  Product,
+  ProductFormState,
+  Category,
+  ProductImageAsset,
+  ProductVariantFormState,
+} from "@/types/domain";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +30,8 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { isEcommerceEnabled } from "@/lib/commerce-mode";
+import { getDiscountPercentage } from "@/lib/storefront";
 import { cn } from "@/lib/utils";
 
 interface ProductPanelProps {
@@ -39,7 +46,15 @@ interface ProductPanelProps {
   imagePreviews: string[];
   isPending: boolean;
   productSubmitting: boolean;
-  onFieldChange: (field: keyof ProductFormState, value: string | File[] | null) => void;
+  onFieldChange: (
+    field: keyof ProductFormState,
+    value: string | File[] | ProductVariantFormState[] | null
+  ) => void;
+  onVariantFieldChange: (
+    index: number,
+    field: keyof ProductVariantFormState,
+    value: string
+  ) => void;
   onImageChange: (event: ChangeEvent<HTMLInputElement>) => void;
   onAppendImages: (files: File[]) => void;
   onSetPrimaryImage: (index: number) => void;
@@ -65,6 +80,7 @@ export function ProductPanel({
   isPending,
   productSubmitting,
   onFieldChange,
+  onVariantFieldChange,
   onImageChange,
   onAppendImages,
   onSetPrimaryImage,
@@ -93,8 +109,19 @@ export function ProductPanel({
     productForm.tipo_medida === "calzado"
       ? "Ej: 38, 39, 40, 41"
       : "Ej: S, M, L, XL";
+  const ecommerceEnabled = isEcommerceEnabled();
+  const basePrice = Number(productForm.precio);
+  const promoPrice = Number(productForm.precio_promocional);
+  const discountPercentage =
+    productForm.precio_promocional !== ""
+      ? getDiscountPercentage(basePrice, promoPrice)
+      : null;
   const productMeasures = (product: Product) =>
-    product.medidas.length > 0 ? product.medidas.join(" | ") : "-";
+    ecommerceEnabled && product.variantes.length > 0
+      ? product.variantes.map((variant) => `${variant.medida}:${variant.stock}`).join(" | ")
+      : product.medidas.length > 0
+        ? product.medidas.join(" | ")
+        : "-";
   const hasNewImages = productForm.imagenes.length > 0;
   const hasExistingImages = existingProductImages.length > 0;
   const visibleImages = hasNewImages ? imagePreviews : existingProductImages.map((image) => image.url);
@@ -196,7 +223,7 @@ export function ProductPanel({
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="product-price">Precio</Label>
+                  <Label htmlFor="product-price">Precio base</Label>
                   <Input
                     id="product-price"
                     type="number"
@@ -206,10 +233,36 @@ export function ProductPanel({
                     onChange={handleTextField("precio")}
                     required
                   />
+                  <p className="text-xs text-zinc-500">
+                    Precio regular del producto antes de promociones.
+                  </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="product-stock">Stock</Label>
+                  <Label htmlFor="product-promo-price">Precio promocional</Label>
+                  <Input
+                    id="product-promo-price"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={productForm.precio_promocional}
+                    onChange={handleTextField("precio_promocional")}
+                    placeholder="Opcional"
+                  />
+                  <p className="text-xs text-zinc-500">
+                    Si se completa y es menor al precio base, se usa como precio visible.
+                  </p>
+                  {discountPercentage ? (
+                    <div className="inline-flex items-center rounded-full bg-black px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-white">
+                      {discountPercentage}% OFF
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="product-stock">
+                    {productForm.tipo_medida === "none" ? "Stock" : "Stock total"}
+                  </Label>
                   <Input
                     id="product-stock"
                     type="number"
@@ -217,8 +270,18 @@ export function ProductPanel({
                     step="1"
                     value={productForm.stock}
                     onChange={handleTextField("stock")}
+                    readOnly={
+                      ecommerceEnabled &&
+                      productForm.tipo_medida !== "none" &&
+                      productForm.variantes.some((variant) => variant.stock !== "")
+                    }
                     required
                   />
+                  {ecommerceEnabled && productForm.tipo_medida !== "none" ? (
+                    <p className="text-xs text-zinc-500">
+                      Se actualiza automaticamente si se completa stock por talla.
+                    </p>
+                  ) : null}
                 </div>
               </div>
 
@@ -278,6 +341,42 @@ export function ProductPanel({
                   <p className="text-xs text-zinc-500">
                     Separalos con coma para guardar varias opciones.
                   </p>
+
+                  {ecommerceEnabled && productForm.variantes.length > 0 ? (
+                    <div className="space-y-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-medium text-black">Stock por medida</p>
+                        <span className="text-xs text-zinc-500">
+                          Completa stock por talle para activar variantes reales.
+                        </span>
+                      </div>
+
+                      <div className="space-y-2">
+                        {productForm.variantes.map((variant, index) => (
+                          <div key={variant.medida || index} className="grid gap-2 sm:grid-cols-[minmax(6rem,0.9fr)_minmax(7rem,1fr)]">
+                            <div
+                              className="flex h-10 min-w-[6rem] items-center rounded-md border border-zinc-300 bg-white px-3 text-sm font-medium text-black"
+                              aria-label={`Medida ${index + 1}`}
+                              title={variant.medida}
+                            >
+                              <span className="truncate">{variant.medida}</span>
+                            </div>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={variant.stock}
+                              onChange={(event) =>
+                                onVariantFieldChange(index, "stock", event.target.value)
+                              }
+                              placeholder="Stock"
+                              aria-label={`Stock de ${variant.medida}`}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -399,11 +498,16 @@ export function ProductPanel({
                               index > 0 && "hover:border-black"
                             )}
                           >
-                            <img
-                              src={image}
-                              alt={index === 0 ? "Portada del producto" : `Miniatura ${index + 1}`}
-                              className="aspect-square w-full object-cover"
-                            />
+                            <div className="relative aspect-square w-full">
+                              <Image
+                                src={image}
+                                alt={index === 0 ? "Portada del producto" : `Miniatura ${index + 1}`}
+                                fill
+                                unoptimized
+                                sizes="112px"
+                                className="object-cover"
+                              />
+                            </div>
                             {index === 0 ? (
                               <>
                                 <span className="pointer-events-none absolute inset-0 ring-1 ring-black" />
@@ -435,11 +539,16 @@ export function ProductPanel({
                               title={index === 0 ? "Portada actual" : "Usar como portada"}
                               className="block w-full"
                             >
-                            <img
-                              src={image}
-                              alt={index === 0 ? "Portada actual del producto" : `Imagen ${index + 1}`}
-                              className="aspect-square w-full object-cover"
-                            />
+                              <div className="relative aspect-square w-full">
+                                <Image
+                                  src={image}
+                                  alt={index === 0 ? "Portada actual del producto" : `Imagen ${index + 1}`}
+                                  fill
+                                  unoptimized
+                                  sizes="112px"
+                                  className="object-cover"
+                                />
+                              </div>
                             </button>
                             <span className="pointer-events-none absolute inset-0 bg-black/0 transition group-hover:bg-black/10" />
                             <Button
@@ -534,16 +643,36 @@ export function ProductPanel({
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
                           {product.imagen ? (
-                            <img
+                            <Image
                               src={product.imagen}
                               alt={product.nombre}
+                              width={32}
+                              height={32}
+                              unoptimized
+                              sizes="32px"
                               className="h-8 w-8 rounded-sm object-cover"
                             />
                           ) : null}
                           <span>{product.nombre}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-center">${product.precio}</TableCell>
+                      <TableCell className="text-center">
+                        <div className="space-y-0.5">
+                          <div>${product.precio}</div>
+                          {product.tiene_promocion ? (
+                            <div className="space-y-0.5">
+                              <div className="text-xs text-zinc-500 line-through">
+                                ${product.precio_lista}
+                              </div>
+                              {getDiscountPercentage(product.precio_lista, product.precio) ? (
+                                <div className="text-[10px] font-medium uppercase tracking-[0.16em] text-emerald-700">
+                                  {getDiscountPercentage(product.precio_lista, product.precio)}% OFF
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-center">
                         {product.stock > 0 ? (
                           <Badge variant="outline">{product.stock}</Badge>

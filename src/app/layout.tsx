@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { getSiteUrl, shouldIndexSite } from "@/lib/site";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,7 +15,8 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").trim();
+const appUrl = getSiteUrl();
+const shouldIndex = shouldIndexSite();
 
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl),
@@ -52,8 +54,8 @@ export const metadata: Metadata = {
     images: ["/assets/deprimeracollection.jpg"],
   },
   robots: {
-    index: true,
-    follow: true,
+    index: shouldIndex,
+    follow: shouldIndex,
   },
 };
 

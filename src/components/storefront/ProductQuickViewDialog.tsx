@@ -4,9 +4,9 @@ import Image from "next/image";
 import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useRef, useState, type PointerEvent } from "react";
 import { AddToCartButton } from "@/components/storefront/AddToCartButton";
-import type { Product } from "@/types/domain";
+import type { Product, ProductSearchResult } from "@/types/domain";
 import { isCloudinaryImageUrl, storefrontImageLoader } from "@/lib/images";
-import { formatCurrency } from "@/lib/storefront";
+import { formatCurrency, getDiscountPercentage, getProductVariants, getVariantStock } from "@/lib/storefront";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 
 interface ProductQuickViewDialogProps {
-  product: Product | null;
+  product: Product | ProductSearchResult | null;
   categoryName?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -34,6 +34,10 @@ export function ProductQuickViewDialog({
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [selectedMeasure, setSelectedMeasure] = useState("");
+  const discountPercentage =
+    product?.tiene_promocion
+      ? getDiscountPercentage(product.precio_lista, product.precio)
+      : null;
   const dragStateRef = useRef<{
     pointerId: number;
     startX: number;
@@ -45,6 +49,7 @@ export function ProductQuickViewDialog({
 
   const images = product?.imagenes.length ? product.imagenes : product?.imagen ? [product.imagen] : [];
   const activeImage = images[activeImageIndex] || images[0] || null;
+  const variants = product ? getProductVariants(product) : [];
 
   function clampOffset(
     nextX: number,
@@ -298,7 +303,23 @@ export function ProductQuickViewDialog({
                 ) : null}
                 <DialogTitle className="text-3xl tracking-tight">{product.nombre}</DialogTitle>
                 <DialogDescription className="text-base font-semibold text-black">
-                  {formatCurrency(product.precio)}
+                  {product.tiene_promocion ? (
+                    <span className="flex flex-col gap-1">
+                      <span className="text-sm font-normal text-zinc-400 line-through">
+                        {formatCurrency(product.precio_lista)}
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <span>{formatCurrency(product.precio)}</span>
+                        {discountPercentage ? (
+                          <span className="inline-flex rounded-full bg-black px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.16em] text-white">
+                            -{discountPercentage}%
+                          </span>
+                        ) : null}
+                      </span>
+                    </span>
+                  ) : (
+                    formatCurrency(product.precio)
+                  )}
                   <span className="block text-xs font-normal text-zinc-500">Precio de contado/efectivo*</span>
                 </DialogDescription>
               </DialogHeader>
@@ -325,18 +346,23 @@ export function ProductQuickViewDialog({
                     </p>
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
-                    {product.medidas.map((measure) => (
+                  <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Elige tu talle">
+                    {variants.map((variant) => (
                       <button
-                        key={measure}
+                        key={variant.medida}
                         type="button"
-                        onClick={() => setSelectedMeasure(measure)}
-                        className={`rounded-full border px-4 py-2 text-sm font-medium transition ${selectedMeasure === measure
+                        role="radio"
+                        aria-checked={selectedMeasure === variant.medida}
+                        onClick={() => setSelectedMeasure(variant.medida)}
+                        disabled={variant.stock <= 0}
+                        className={`rounded-full border px-4 py-2 text-sm font-medium transition ${selectedMeasure === variant.medida
                           ? "border-black bg-black text-white"
-                          : "border-zinc-300 bg-white text-black hover:border-black"
+                          : variant.stock <= 0
+                            ? "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400"
+                            : "border-zinc-300 bg-white text-black hover:border-black"
                           }`}
                       >
-                        {measure}
+                        {variant.medida}
                       </button>
                     ))}
                   </div>
@@ -347,7 +373,7 @@ export function ProductQuickViewDialog({
                 <AddToCartButton
                   key={selectedMeasure || "sin-talle"}
                   productId={product.id_producto}
-                  stock={product.stock}
+                  stock={getVariantStock(product, selectedMeasure || null)}
                   selectedMeasure={selectedMeasure || null}
                   requiresMeasure={product.medidas.length > 0}
                   className="w-full"

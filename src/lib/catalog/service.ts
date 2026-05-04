@@ -15,8 +15,10 @@ import type {
   FirebaseDateLike,
   Product,
   ProductMeasureType,
+  ProductVariant,
   RawCategoryRecord,
   RawProductRecord,
+  RawProductVariantRecord,
 } from "@/types/domain";
 import { isRecord } from "@/types/shared";
 
@@ -33,6 +35,8 @@ interface ProductInput {
   description?: unknown;
   precio?: unknown;
   price?: unknown;
+  precio_promocional?: unknown;
+  promoPrice?: unknown;
   id_categoria?: unknown;
   categoryId?: unknown;
   stock?: unknown;
@@ -41,6 +45,8 @@ interface ProductInput {
   measureType?: unknown;
   medidas?: unknown;
   measureOptions?: unknown;
+  variantes?: unknown;
+  variants?: unknown;
   existing_images?: unknown;
   existingImages?: unknown;
   clear_existing_images?: unknown;
@@ -61,11 +67,15 @@ interface NormalizedProductInput {
   name?: string;
   description?: string;
   price?: number;
+  basePrice?: number;
+  promoPrice?: number | null;
+  promoEnabled?: boolean;
   categoryId?: string;
   stock?: number;
   tag?: string | null;
   measureType?: ProductMeasureType;
   measureOptions?: string[];
+  variants?: RawProductVariantRecord[];
 }
 
 interface ProductImageUploadResult {
@@ -199,6 +209,94 @@ function normalizeMeasureOptions(value: unknown): string[] {
   return [];
 }
 
+function parseVariantStock(value: unknown): number {
+  const stock = parseNumber(value);
+
+  if (stock === null || stock < 0) {
+    throw createHttpError(400, "El stock por variante es invalido.");
+  }
+
+  return stock;
+}
+
+function normalizeProductVariants(value: unknown): RawProductVariantRecord[] {
+  const normalizedSource =
+    typeof value === "string"
+      ? (() => {
+          const trimmedValue = value.trim();
+
+          if (!trimmedValue) {
+            return [];
+          }
+
+          try {
+            return JSON.parse(trimmedValue);
+          } catch {
+            throw createHttpError(400, "Las variantes del producto tienen un formato invalido.");
+          }
+        })()
+      : value;
+
+  if (!Array.isArray(normalizedSource)) {
+    return [];
+  }
+
+  const seenMeasures = new Set<string>();
+
+  const normalizedVariants = normalizedSource
+    .map((item): RawProductVariantRecord | null => {
+      if (!isRecord(item)) {
+        return null;
+      }
+
+      const measure = safeString(item.medida ?? item.measure);
+
+      if (!measure) {
+        return null;
+      }
+
+      const normalizedMeasure = measure.toLowerCase();
+
+      if (seenMeasures.has(normalizedMeasure)) {
+        throw createHttpError(400, "No se pueden repetir variantes con la misma medida.");
+      }
+
+      seenMeasures.add(normalizedMeasure);
+
+      return {
+        medida: measure,
+        stock: parseVariantStock(item.stock),
+        sku: safeString(item.sku) || null,
+      } satisfies RawProductVariantRecord;
+    })
+    .filter((item): item is RawProductVariantRecord => item !== null);
+
+  return normalizedVariants;
+}
+
+function getProductVariantsStock(variants: RawProductVariantRecord[]): number {
+  return variants.reduce((total, variant) => total + Number(variant.stock || 0), 0);
+}
+
+function resolvePersistedPricing(
+  basePrice: number,
+  promoPrice: number | null
+): {
+  basePrice: number;
+  effectivePrice: number;
+  promoEnabled: boolean;
+  promoPrice: number | null;
+} {
+  const hasPromotion = promoPrice !== null && promoPrice >= 0 && promoPrice < basePrice;
+
+  return {
+    basePrice,
+    effectivePrice: hasPromotion ? promoPrice ?? basePrice : basePrice,
+    promoEnabled: hasPromotion,
+    promoPrice: hasPromotion ? promoPrice : null,
+  };
+}
+
 function toComparableDate(value: FirebaseDateLike): number {
   if (!value) {
     return 0;
@@ -266,6 +364,8 @@ function normalizeProductInput(
   const hasDescription =
     input.descripcion !== undefined || input.description !== undefined;
   const hasPrice = input.precio !== undefined || input.price !== undefined;
+  const hasPromoPrice =
+    input.precio_promocional !== undefined || input.promoPrice !== undefined;
   const hasCategory =
     input.id_categoria !== undefined || input.categoryId !== undefined;
   const hasStock = input.stock !== undefined;
@@ -287,6 +387,7 @@ function normalizeProductInput(
     normalized.description = safeString(input.descripcion ?? input.description);
   }
 
+  let parsedBasePrice: number | undefined;
   if (!partial || hasPrice) {
     const price = parseNumber(input.precio ?? input.price);
 
@@ -294,7 +395,18 @@ function normalizeProductInput(
       throw createHttpError(400, "El precio del producto es invalido.");
     }
 
-    normalized.price = price;
+    parsedBasePrice = price;
+    normalized.basePrice = price;
+  }
+
+  if (!partial || hasPromoPrice) {
+    const promoPrice = parseNumber(input.precio_promocional ?? input.promoPrice, null);
+
+    if (promoPrice !== null && promoPrice < 0) {
+      throw createHttpError(400, "El precio promocional es invalido.");
+    }
+
+    normalized.promoPrice = promoPrice;
   }
 
   if (!partial || hasCategory) {
@@ -325,16 +437,25 @@ function normalizeProductInput(
     input.tipo_medida !== undefined || input.measureType !== undefined;
   const hasMeasureOptions =
     input.medidas !== undefined || input.measureOptions !== undefined;
+  const hasVariants = input.variantes !== undefined || input.variants !== undefined;
 
-  if (!partial || hasMeasureType || hasMeasureOptions) {
+  if (!partial || hasMeasureType || hasMeasureOptions || hasVariants) {
     const measureType = normalizeMeasureType(
       input.tipo_medida ?? input.measureType
     );
     const measureOptions = normalizeMeasureOptions(
       input.medidas ?? input.measureOptions
     );
+    const variants = normalizeProductVariants(input.variantes ?? input.variants);
 
-    if (measureType !== "none" && measureOptions.length === 0) {
+    if (variants.length > 0) {
+      const variantMeasures = variants.map((variant) => variant.medida);
+      normalized.measureOptions = variantMeasures;
+      normalized.variants = variants;
+      normalized.stock = getProductVariantsStock(variants);
+    }
+
+    if (measureType !== "none" && measureOptions.length === 0 && variants.length === 0) {
       throw createHttpError(
         400,
         "Debes indicar al menos una medida disponible para el producto."
@@ -342,11 +463,30 @@ function normalizeProductInput(
     }
 
     normalized.measureType = measureType;
-    normalized.measureOptions = measureType === "none" ? [] : measureOptions;
+    normalized.measureOptions =
+      measureType === "none"
+        ? []
+        : variants.length > 0
+          ? variants.map((variant) => variant.medida)
+          : measureOptions;
+
+    if (measureType === "none") {
+      normalized.variants = [];
+    }
   }
 
   if (partial && Object.keys(normalized).length === 0) {
     throw createHttpError(400, "No se enviaron datos para actualizar.");
+  }
+
+  const nextBasePrice = parsedBasePrice ?? normalized.basePrice;
+
+  if (nextBasePrice !== undefined) {
+    const pricing = resolvePersistedPricing(nextBasePrice, normalized.promoPrice ?? null);
+    normalized.basePrice = pricing.basePrice;
+    normalized.price = pricing.effectivePrice;
+    normalized.promoEnabled = pricing.promoEnabled;
+    normalized.promoPrice = pricing.promoPrice;
   }
 
   return normalized;
@@ -387,11 +527,15 @@ function toRawProductRecord(id: string, data: DocumentData): RawProductRecord {
     name: safeString(data.name),
     description: safeString(data.description),
     price: parseNumber(data.price, 0),
+    basePrice: parseNumber(data.basePrice, parseNumber(data.price, 0)),
+    promoPrice: parseNumber(data.promoPrice, null),
+    promoEnabled: data.promoEnabled === true,
     categoryId: safeString(data.categoryId) || null,
     stock: parseNumber(data.stock, 0),
     tag: safeString(data.tag) || null,
     measureType: normalizeMeasureType(data.measureType),
     measureOptions: normalizeMeasureOptions(data.measureOptions),
+    variants: normalizeProductVariants(data.variants),
     imageUrl: fallbackImageUrl || imageUrls[0] || null,
     imagePath: fallbackImagePath || imagePaths[0] || null,
     imageUrls: imageUrls.length > 0 ? imageUrls : (fallbackImageUrl ? [fallbackImageUrl] : []),
@@ -444,19 +588,30 @@ async function readProductsRaw(): Promise<RawProductRecord[]> {
   return readProductsRawCached();
 }
 
+async function readProductsByCategoryRaw(categoryId: string): Promise<RawProductRecord[]> {
+  if (!categoryId) {
+    return [];
+  }
+
+  const db = getFirebaseAdminDb();
+  const snapshot = await db.collection("products").where("categoryId", "==", categoryId).get();
+
+  return snapshot.docs.map((doc) => toRawProductRecord(doc.id, doc.data() ?? {}));
+}
+
 async function getCategoryRawByIdentifier(identifier: string): Promise<RawCategoryRecord | null> {
   const normalizedIdentifier = normalizeText(identifier);
-  const categories = await readCategoriesRaw();
+  const db = getFirebaseAdminDb();
 
-  return (
-    categories.find(
-      (category) => normalizeText(category.slug) === normalizedIdentifier
-    ) ||
-    categories.find(
-      (category) => normalizeText(category.name) === normalizedIdentifier
-    ) ||
-    null
-  );
+  const slugSnapshot = await db.collection("categories").where("slug", "==", normalizedIdentifier).limit(1).get();
+
+  if (!slugSnapshot.empty) {
+    const firstDoc = slugSnapshot.docs[0];
+    return toRawCategoryRecord(firstDoc.id, firstDoc.data() ?? {});
+  }
+
+  const categories = await readCategoriesRaw();
+  return categories.find((category) => normalizeText(category.name) === normalizedIdentifier) || null;
 }
 
 async function getCategoryDocById(id: string): Promise<RawCategoryRecord | null> {
@@ -681,7 +836,7 @@ export async function listCategories(): Promise<Category[]> {
 }
 
 export async function getCategoryById(id: string): Promise<Category | null> {
-  const category = (await readCategoriesRaw()).find((item) => item.id === id) ?? null;
+  const category = await getCategoryDocById(id);
   return category ? serializeCategory(category) : null;
 }
 
@@ -737,18 +892,16 @@ export async function updateCategory(
 
 export async function deleteCategory(id: string): Promise<DeleteResponse> {
   const db = getFirebaseAdminDb();
-  const [category, products] = await Promise.all([
+  const [category, linkedProductsSnapshot] = await Promise.all([
     getCategoryDocById(id),
-    readProductsRaw(),
+    db.collection("products").where("categoryId", "==", id).limit(1).get(),
   ]);
 
   if (!category) {
     throw createHttpError(404, "Categoria no encontrada.");
   }
 
-  const linkedProducts = products.some((product) => product.categoryId === id);
-
-  if (linkedProducts) {
+  if (!linkedProductsSnapshot.empty) {
     throw createHttpError(
       409,
       "No se puede eliminar la categoria porque tiene productos asociados."
@@ -769,10 +922,7 @@ export async function getCategoryProductsByName(
     return null;
   }
 
-  const products = await readProductsRaw();
-  return sortByCreatedAtDesc(
-    products.filter((product) => product.categoryId === category.id)
-  ).map(serializeProduct);
+  return sortByCreatedAtDesc(await readProductsByCategoryRaw(category.id)).map(serializeProduct);
 }
 
 export async function listProductsByCategoryId(categoryId: string): Promise<Product[]> {
@@ -780,9 +930,7 @@ export async function listProductsByCategoryId(categoryId: string): Promise<Prod
     return [];
   }
 
-  return sortByCreatedAtDesc(await readProductsRaw())
-    .filter((product) => product.categoryId === categoryId)
-    .map(serializeProduct);
+  return sortByCreatedAtDesc(await readProductsByCategoryRaw(categoryId)).map(serializeProduct);
 }
 
 export async function listCategoriesWithProducts(): Promise<CategoryWithProducts[]> {
@@ -834,8 +982,8 @@ export async function listRelatedProducts(
 
   const normalizedLimit = normalizeLimit(limit, 4);
 
-  return sortByCreatedAtDesc(await readProductsRaw())
-    .filter((product) => product.categoryId === categoryId && product.id !== productId)
+  return sortByCreatedAtDesc(await readProductsByCategoryRaw(categoryId))
+    .filter((product) => product.id !== productId)
     .slice(0, normalizedLimit)
     .map(serializeProduct);
 }
@@ -907,6 +1055,20 @@ export async function updateProduct(
   }
 
   const normalized = normalizeProductInput(input, { partial: true });
+  const effectiveBasePrice =
+    normalized.basePrice ?? parseNumber(existing.basePrice, parseNumber(existing.price, 0)) ?? 0;
+  const effectivePromoPrice =
+    normalized.promoPrice !== undefined
+      ? normalized.promoPrice
+      : parseNumber(existing.promoPrice, null);
+  const pricing = resolvePersistedPricing(effectiveBasePrice, effectivePromoPrice);
+
+  if (normalized.basePrice !== undefined || normalized.promoPrice !== undefined) {
+    normalized.basePrice = pricing.basePrice;
+    normalized.price = pricing.effectivePrice;
+    normalized.promoEnabled = pricing.promoEnabled;
+    normalized.promoPrice = pricing.promoPrice;
+  }
   const hasExistingImagesPayload =
     input.existing_images !== undefined || input.existingImages !== undefined;
   const retainedExistingImages = normalizeExistingProductImages(
@@ -999,8 +1161,8 @@ export async function deleteProduct(id: string): Promise<DeleteResponse> {
 
 export async function getProductStockById(
   id: string
-): Promise<{ stock: number } | null> {
-  const product = await getProductDocById(id);
+): Promise<{ stock: number; variantes: ProductVariant[] } | null> {
+  const product = await getProductById(id);
 
   if (!product) {
     return null;
@@ -1008,6 +1170,7 @@ export async function getProductStockById(
 
   return {
     stock: Number.isFinite(Number(product.stock)) ? Number(product.stock) : 0,
+    variantes: product.variantes,
   };
 }
 

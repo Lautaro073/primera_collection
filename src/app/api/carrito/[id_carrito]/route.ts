@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { addOrUpdateCartItem, getCartItems } from "@/lib/cart/service";
 import { toErrorResponse } from "@/lib/api/errors";
+import { getOptionalCustomer } from "@/lib/auth/customer";
 import type { RouteContext } from "@/types/next";
 
 interface CartParams {
@@ -10,7 +11,8 @@ interface CartParams {
 export async function GET(_request: Request, context: RouteContext<CartParams>) {
   try {
     const { id_carrito } = await context.params;
-    const items = await getCartItems(id_carrito);
+    const customer = await getOptionalCustomer(_request);
+    const items = await getCartItems(id_carrito, customer?.uid || null);
     return NextResponse.json(items);
   } catch (error: unknown) {
     return toErrorResponse(error, "Error al obtener los items del carrito");
@@ -20,6 +22,7 @@ export async function GET(_request: Request, context: RouteContext<CartParams>) 
 export async function POST(request: Request, context: RouteContext<CartParams>) {
   try {
     const { id_carrito } = await context.params;
+    const customer = await getOptionalCustomer(request);
     const body = (await request.json()) as {
       id_producto?: string;
       cantidad?: number | string;
@@ -29,7 +32,8 @@ export async function POST(request: Request, context: RouteContext<CartParams>) 
       id_carrito,
       body.id_producto || "",
       body.cantidad ?? 0,
-      body.medida
+      body.medida,
+      customer?.uid || null
     );
 
     return NextResponse.json(

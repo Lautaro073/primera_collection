@@ -5,6 +5,7 @@
 /legacy-admin
 /deuda-tecnica
 /docs
+.agents
 /.pnp
 .pnp.*
 .yarn/*

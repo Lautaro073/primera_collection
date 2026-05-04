@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useDeferredValue,
   useEffect,
   useMemo,
@@ -20,7 +21,13 @@ import type {
   ProductImageAsset,
   Product,
   ProductFormState,
+  ProductVariantFormState,
 } from "@/types/domain";
+import {
+  isAdminCatalogPayload,
+  isCategory,
+  isProduct,
+} from "@/lib/catalog/contracts";
 import { isErrorWithMessage, isRecord } from "@/types/shared";
 import {
   MAX_PRODUCT_IMAGE_COUNT,
@@ -44,32 +51,6 @@ function getResponseErrorMessage(payload: unknown, fallback: string): string {
   }
 
   return fallback;
-}
-
-function isCategoryArray(payload: unknown): payload is Category[] {
-  return Array.isArray(payload);
-}
-
-function isProductArray(payload: unknown): payload is Product[] {
-  return Array.isArray(payload);
-}
-
-function isCategory(payload: unknown): payload is Category {
-  return isRecord(payload) && typeof payload.id_categoria === "string";
-}
-
-function isProduct(payload: unknown): payload is Product {
-  return isRecord(payload) && typeof payload.id_producto === "string";
-}
-
-function isAdminCatalogPayload(
-  payload: unknown
-): payload is { categories: Category[]; products: Product[] } {
-  return (
-    isRecord(payload) &&
-    isCategoryArray(payload.categories) &&
-    isProductArray(payload.products)
-  );
 }
 
 function toTimestamp(value: string | null): number {
@@ -148,7 +129,15 @@ interface UseAdminCatalogResult {
   categoryForm: CategoryFormState;
   productForm: ProductFormState;
   updateCategoryField: (field: keyof CategoryFormState, value: string) => void;
-  updateProductField: (field: keyof ProductFormState, value: string | File[] | null) => void;
+  updateProductField: (
+    field: keyof ProductFormState,
+    value: string | File[] | ProductVariantFormState[] | null
+  ) => void;
+  updateProductVariantField: (
+    index: number,
+    field: keyof ProductVariantFormState,
+    value: string
+  ) => void;
   handleImageChange: (event: ChangeEvent<HTMLInputElement>) => void;
   appendImageFiles: (files: File[]) => void;
   setPrimarySelectedImage: (index: number) => void;
@@ -183,13 +172,61 @@ const EMPTY_PRODUCT_FORM: ProductFormState = {
   nombre: "",
   descripcion: "",
   precio: "",
+  precio_promocional: "",
   id_categoria: "",
   stock: "",
   tag: "",
   tipo_medida: "none",
   medidas: "",
+  variantes: [],
   imagenes: [],
 };
+
+function normalizeVariantMeasures(value: string): string[] {
+  const seen = new Set<string>();
+
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => {
+      if (!item) {
+        return false;
+      }
+
+      const normalized = item.toLowerCase();
+
+      if (seen.has(normalized)) {
+        return false;
+      }
+
+      seen.add(normalized);
+      return true;
+    });
+}
+
+function syncVariantsFromMeasures(
+  measures: string,
+  currentVariants: ProductVariantFormState[]
+): ProductVariantFormState[] {
+  const measuresList = normalizeVariantMeasures(measures);
+
+  return measuresList.map((measure) => {
+    const existingVariant = currentVariants.find(
+      (variant) => variant.medida.toLowerCase() === measure.toLowerCase()
+    );
+
+    return existingVariant || { medida: measure, stock: "", sku: "" };
+  });
+}
+
+function sumVariantStock(variants: ProductVariantFormState[]): string {
+  const total = variants.reduce((sum, variant) => {
+    const parsed = Number(variant.stock);
+    return Number.isFinite(parsed) && parsed >= 0 ? sum + parsed : sum;
+  }, 0);
+
+  return String(total);
+}
 
 export function useAdminCatalog(): UseAdminCatalogResult {
   const router = useRouter();
@@ -220,6 +257,56 @@ export function useAdminCatalog(): UseAdminCatalogResult {
 
   const [categoryForm, setCategoryForm] = useState<CategoryFormState>(EMPTY_CATEGORY_FORM);
   const [productForm, setProductForm] = useState<ProductFormState>(EMPTY_PRODUCT_FORM);
+
+  useEffect(() => {
+    imagePreviewsRef.current = imagePreviews;
+  }, [imagePreviews]);
+
+  useEffect(() => {
+    return () => {
+      if (imagePreviewsRef.current.length > 0) {
+        imagePreviewsRef.current.forEach((preview) => URL.revokeObjectURL(preview));
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!notice) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setNotice("");
+    }, 3500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [notice]);
+
+  const loadCatalog = useCallback(async (currentAuth?: Auth): Promise<void> => {
+    const resolvedAuth = currentAuth ?? auth;
+
+    if (!resolvedAuth) {
+      return;
+    }
+
+    setError("");
+
+    const response = await authorizedFetch(resolvedAuth, "/api/admin/catalog");
+    const payload = await parseJson<
+      { categories: Category[]; products: Product[] } | ErrorResponseBody
+    >(response);
+
+    if (!response.ok) {
+      throw new Error(getResponseErrorMessage(payload, "No se pudo cargar el catalogo."));
+    }
+
+    if (!isAdminCatalogPayload(payload)) {
+      throw new Error("La API devolvio un formato invalido.");
+    }
+
+    setCategories(sortCategories(payload.categories));
+    setProducts(sortProducts(payload.products));
+  }, [auth]);
 
   useEffect(() => {
     let unsubscribe: () => void = () => undefined;
@@ -276,58 +363,7 @@ export function useAdminCatalog(): UseAdminCatalogResult {
     });
 
     return () => unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router]);
-
-  useEffect(() => {
-    imagePreviewsRef.current = imagePreviews;
-  }, [imagePreviews]);
-
-  useEffect(() => {
-    return () => {
-      if (imagePreviewsRef.current.length > 0) {
-        imagePreviewsRef.current.forEach((preview) => URL.revokeObjectURL(preview));
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!notice) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setNotice("");
-    }, 3500);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [notice]);
-
-  async function loadCatalog(currentAuth?: Auth): Promise<void> {
-    const resolvedAuth = currentAuth ?? auth;
-
-    if (!resolvedAuth) {
-      return;
-    }
-
-    setError("");
-
-    const response = await authorizedFetch(resolvedAuth, "/api/admin/catalog");
-    const payload = await parseJson<
-      { categories: Category[]; products: Product[] } | ErrorResponseBody
-    >(response);
-
-    if (!response.ok) {
-      throw new Error(getResponseErrorMessage(payload, "No se pudo cargar el catalogo."));
-    }
-
-    if (!isAdminCatalogPayload(payload)) {
-      throw new Error("La API devolvio un formato invalido.");
-    }
-
-    setCategories(sortCategories(payload.categories));
-    setProducts(sortProducts(payload.products));
-  }
+  }, [loadCatalog, router]);
 
   function setSuccess(message: string): void {
     setNotice(message);
@@ -357,12 +393,93 @@ export function useAdminCatalog(): UseAdminCatalogResult {
 
   function updateProductField(
     field: keyof ProductFormState,
-    value: string | File[] | null
+    value: string | File[] | ProductVariantFormState[] | null
   ): void {
-    setProductForm((current) => ({
-      ...current,
-      [field]: value,
-    }));
+    setProductForm((current): ProductFormState => {
+      if (field === "medidas" && typeof value === "string") {
+        const nextVariants =
+          current.tipo_medida === "none"
+            ? []
+            : syncVariantsFromMeasures(value, current.variantes);
+
+        return {
+          ...current,
+          medidas: value,
+          variantes: nextVariants,
+          stock:
+            nextVariants.length > 0 && nextVariants.some((variant) => variant.stock !== "")
+              ? sumVariantStock(nextVariants)
+              : current.stock,
+        };
+      }
+
+      if (field === "tipo_medida" && typeof value === "string") {
+        if (value === "none") {
+          return {
+            ...current,
+            tipo_medida: "none",
+            medidas: "",
+            variantes: [],
+          };
+        }
+
+        const nextVariants = syncVariantsFromMeasures(current.medidas, current.variantes);
+
+        return {
+          ...current,
+          tipo_medida: value as ProductFormState["tipo_medida"],
+          variantes: nextVariants,
+          stock:
+            nextVariants.length > 0 && nextVariants.some((variant) => variant.stock !== "")
+              ? sumVariantStock(nextVariants)
+              : current.stock,
+        };
+      }
+
+      if (field === "variantes" && Array.isArray(value)) {
+        const nextVariants = value as ProductVariantFormState[];
+
+        return {
+          ...current,
+          variantes: nextVariants,
+          stock:
+            nextVariants.some((variant) => variant.stock !== "")
+              ? sumVariantStock(nextVariants)
+              : current.stock,
+        };
+      }
+
+      return {
+        ...current,
+        [field]: value,
+      } as ProductFormState;
+    });
+  }
+
+  function updateProductVariantField(
+    index: number,
+    field: keyof ProductVariantFormState,
+    value: string
+  ): void {
+    setProductForm((current) => {
+      const nextVariants = current.variantes.map((variant, currentIndex) =>
+        currentIndex === index
+          ? {
+              ...variant,
+              [field]: value,
+            }
+          : variant
+      );
+
+      return {
+        ...current,
+        variantes: nextVariants,
+        stock:
+          nextVariants.some((variant) => variant.stock !== "")
+            ? sumVariantStock(nextVariants)
+            : current.stock,
+      };
+    });
   }
 
   function clearObjectPreview(): void {
@@ -528,7 +645,7 @@ export function useAdminCatalog(): UseAdminCatalogResult {
       product.imagenes.length > 0
         ? product.imagenes.map((url, index) => ({
             url,
-            path: product.image_paths[index] || null,
+            path: product.image_paths?.[index] || null,
           }))
         : product.imagen
           ? [{ url: product.imagen, path: product.image_path || null }]
@@ -538,12 +655,24 @@ export function useAdminCatalog(): UseAdminCatalogResult {
     setProductForm({
       nombre: product.nombre || "",
       descripcion: product.descripcion || "",
-      precio: String(product.precio ?? ""),
+      precio: String(product.precio_lista ?? product.precio ?? ""),
+      precio_promocional:
+        product.precio_promocional !== null && product.precio_promocional !== undefined
+          ? String(product.precio_promocional)
+          : "",
       id_categoria: product.id_categoria || "",
       stock: String(product.stock ?? ""),
       tag: product.tag || "",
       tipo_medida: product.tipo_medida || "none",
       medidas: product.medidas.join(", "),
+      variantes:
+        product.variantes.length > 0
+          ? product.variantes.map((variant) => ({
+              medida: variant.medida,
+              stock: String(variant.stock),
+              sku: variant.sku || "",
+            }))
+          : syncVariantsFromMeasures(product.medidas.join(", "), []),
       imagenes: [],
     });
     clearObjectPreview();
@@ -621,15 +750,45 @@ export function useAdminCatalog(): UseAdminCatalogResult {
     startTransition(() => {
       void (async () => {
         try {
+          const normalizedVariants = productForm.variantes
+            .map((variant) => ({
+              medida: variant.medida.trim(),
+              stock: variant.stock.trim(),
+              sku: variant.sku.trim(),
+            }))
+            .filter((variant) => variant.medida);
+          const hasVariantStocks = normalizedVariants.some((variant) => variant.stock !== "");
+
+          if (
+            productForm.tipo_medida !== "none" &&
+            hasVariantStocks &&
+            normalizedVariants.some((variant) => variant.stock === "")
+          ) {
+            throw new Error("Completa el stock de todas las variantes antes de guardar.");
+          }
+
           const formData = new FormData();
           formData.set("nombre", productForm.nombre);
           formData.set("descripcion", productForm.descripcion);
           formData.set("precio", productForm.precio);
+          formData.set("precio_promocional", productForm.precio_promocional);
           formData.set("id_categoria", productForm.id_categoria);
           formData.set("stock", productForm.stock);
           formData.set("tag", productForm.tag);
           formData.set("tipo_medida", productForm.tipo_medida);
           formData.set("medidas", productForm.medidas);
+          if (productForm.tipo_medida !== "none" && hasVariantStocks) {
+            formData.set(
+              "variantes",
+              JSON.stringify(
+                normalizedVariants.map((variant) => ({
+                  medida: variant.medida,
+                  stock: variant.stock,
+                  sku: variant.sku || null,
+                }))
+              )
+            );
+          }
           formData.set(
             "clear_existing_images",
             existingImagesMarkedForRemoval ? "true" : "false"
@@ -817,6 +976,7 @@ export function useAdminCatalog(): UseAdminCatalogResult {
     productForm,
     updateCategoryField,
     updateProductField,
+    updateProductVariantField,
     handleImageChange,
     appendImageFiles,
     setPrimarySelectedImage,

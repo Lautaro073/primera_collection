@@ -31,7 +31,7 @@ export function AddToCartButton({
   const { addItem, getProductQuantity, isReady } = useStoreCart();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const missingMeasure = requiresMeasure && !selectedMeasure;
-  const quantityInCart = getProductQuantity(productId);
+  const quantityInCart = getProductQuantity(productId, selectedMeasure);
   const stockReached = stock > 0 && quantityInCart >= stock;
   const disabledReason = !isReady
     ? "Preparando carrito..."

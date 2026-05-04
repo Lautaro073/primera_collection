@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { searchProducts } from "@/lib/catalog/service";
 import { toErrorResponse } from "@/lib/api/errors";
+import { serializeProductSearchResult } from "@/lib/catalog/serializers";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -17,7 +18,7 @@ export async function GET(request: Request) {
 
   try {
     const productos = await searchProducts(term, { limit });
-    return NextResponse.json(productos);
+    return NextResponse.json(productos.map(serializeProductSearchResult));
   } catch (error: unknown) {
     return toErrorResponse(error, "Error al buscar los productos");
   }

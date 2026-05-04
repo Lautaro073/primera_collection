@@ -7,6 +7,8 @@
         "build": "next build",
         "start": "next start",
         "lint": "eslint",
+        "biome:check": "biome check --files-ignore-unknown=true .",
+        "biome:write": "biome check --write --files-ignore-unknown=true .",
         "admin:grant": "node --env-file=.env.local --import tsx scripts/set-admin-claim.ts"
     },
     "browserslist": {
@@ -41,6 +43,7 @@
         "tailwind-merge": "^3.5.0"
     },
     "devDependencies": {
+        "@biomejs/biome": "^2.4.7",
         "@tailwindcss/postcss": "^4",
         "@types/node": "^25.3.2",
         "@types/react": "^19.2.14",

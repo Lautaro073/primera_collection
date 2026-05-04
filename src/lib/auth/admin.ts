@@ -4,6 +4,7 @@ import { getFirebaseAdminApp } from "@/lib/firebase/admin";
 
 export const ADMIN_SESSION_COOKIE_NAME = "primera_admin_session";
 const ADMIN_SESSION_EXPIRES_IN_MS = 1000 * 60 * 60 * 24 * 5;
+const VERIFY_REVOKED_ADMIN_SESSION = process.env.NODE_ENV === "production";
 
 function isAdminToken(decodedToken: DecodedIdToken): boolean {
   return decodedToken.admin === true || decodedToken.role === "admin";
@@ -65,7 +66,7 @@ export async function verifyAdminSessionCookie(
   try {
     const decodedToken = await getAuth(getFirebaseAdminApp()).verifySessionCookie(
       sessionCookie,
-      false
+      VERIFY_REVOKED_ADMIN_SESSION
     );
     return isAdminToken(decodedToken) ? decodedToken : null;
   } catch {

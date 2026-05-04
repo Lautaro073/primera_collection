@@ -6,12 +6,19 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
+import { onIdTokenChanged } from "firebase/auth";
 import type { SerializedCartItem } from "@/types/domain";
+import { getFirebaseClientAuth } from "@/lib/firebase/auth";
+import { isUserAccountsEnabled } from "@/lib/commerce-mode";
+import { clearCustomerSession, persistCustomerSession } from "@/lib/customer/client";
 
 const CART_STORAGE_KEY = "primera_collection_cart_id";
+
+type CartOwnerType = "anonymous" | "customer";
 
 function buildCartLineKey(
   productId: string,
@@ -26,12 +33,16 @@ interface CartMutationResponse {
 
 interface CartSessionResponse {
   id_carrito: string;
+  items?: SerializedCartItem[];
+  merged?: boolean;
+  owner_type?: CartOwnerType;
+  restored?: boolean;
 }
 
 interface StoreCartContextValue {
   cartId: string;
   items: SerializedCartItem[];
-  getProductQuantity: (productId: string) => number;
+  getProductQuantity: (productId: string, selectedMeasure?: string | null) => number;
   itemCount: number;
   totalAmount: number;
   isReady: boolean;
@@ -67,26 +78,20 @@ async function parseJson<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
-async function ensureCart(cartId: string): Promise<SerializedCartItem[]> {
-  const response = await fetch(`/api/carrito/${encodeURIComponent(cartId)}`, {
-    credentials: "same-origin",
-  });
-
-  if (!response.ok) {
-    throw new Error("No se pudo leer el carrito.");
-  }
-
-  return parseJson<SerializedCartItem[]>(response);
-}
-
-async function createCart(): Promise<CartSessionResponse> {
-  const response = await fetch("/api/session/crear", {
+async function requestCartSession(
+  cartId: string | null
+): Promise<CartSessionResponse> {
+  const response = await fetch("/api/session/cart", {
     method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
     credentials: "same-origin",
+    body: JSON.stringify({ id_carrito: cartId }),
   });
 
   if (!response.ok) {
-    throw new Error("No se pudo crear el carrito.");
+    throw new Error("No se pudo inicializar el carrito.");
   }
 
   return parseJson<CartSessionResponse>(response);
@@ -102,6 +107,19 @@ export function StoreCartProvider({ children }: StoreCartProviderProps) {
   const [isReady, setIsReady] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [ownerType, setOwnerType] = useState<CartOwnerType>("anonymous");
+  const ownerTypeRef = useRef<CartOwnerType>("anonymous");
+
+  const hydrateCart = useCallback((session: CartSessionResponse): void => {
+    window.localStorage.setItem(CART_STORAGE_KEY, session.id_carrito);
+    setCartId(session.id_carrito);
+    setItems(session.items || []);
+    setOwnerType(session.owner_type || "anonymous");
+  }, []);
+
+  useEffect(() => {
+    ownerTypeRef.current = ownerType;
+  }, [ownerType]);
 
   const initializeCart = useCallback(async () => {
     if (typeof window === "undefined") {
@@ -112,31 +130,64 @@ export function StoreCartProvider({ children }: StoreCartProviderProps) {
 
     try {
       const storedCartId = window.localStorage.getItem(CART_STORAGE_KEY);
+      const initializedCart = await requestCartSession(storedCartId);
+      hydrateCart(initializedCart);
 
-      if (storedCartId) {
-        try {
-          const storedItems = await ensureCart(storedCartId);
-          setCartId(storedCartId);
-          setItems(storedItems);
-          return;
-        } catch {
-          window.localStorage.removeItem(CART_STORAGE_KEY);
-        }
-      }
-
-      const createdCart = await createCart();
-      window.localStorage.setItem(CART_STORAGE_KEY, createdCart.id_carrito);
-      setCartId(createdCart.id_carrito);
-      setItems([]);
     } finally {
       setIsLoading(false);
       setIsReady(true);
     }
-  }, []);
+  }, [hydrateCart]);
 
   useEffect(() => {
+    if (isUserAccountsEnabled()) {
+      return;
+    }
+
     void initializeCart();
   }, [initializeCart]);
+
+  useEffect(() => {
+    if (!isUserAccountsEnabled()) {
+      return;
+    }
+
+    let unsubscribe: () => void = () => undefined;
+
+    void (async () => {
+      const auth = await getFirebaseClientAuth();
+
+      unsubscribe = onIdTokenChanged(auth, async (user) => {
+        if (typeof window === "undefined") {
+          return;
+        }
+
+        const storedCartId = window.localStorage.getItem(CART_STORAGE_KEY);
+
+        try {
+          setIsLoading(true);
+
+          if (user) {
+            await persistCustomerSession(user);
+          } else if (ownerTypeRef.current === "customer") {
+            await clearCustomerSession();
+          }
+
+          const nextCart = await requestCartSession(storedCartId);
+          hydrateCart(nextCart);
+        } catch {
+          if (!user) {
+            window.localStorage.removeItem(CART_STORAGE_KEY);
+          }
+        } finally {
+          setIsLoading(false);
+          setIsReady(true);
+        }
+      });
+    })();
+
+    return () => unsubscribe();
+  }, [hydrateCart, ownerType]);
 
   const openDrawer = useCallback(() => {
     setIsDrawerOpen(true);
@@ -316,11 +367,11 @@ export function StoreCartProvider({ children }: StoreCartProviderProps) {
     [cartId]
   );
 
-  const quantityByProductId = useMemo<Record<string, number>>(() => {
+  const quantityByLineKey = useMemo<Record<string, number>>(() => {
     const quantities: Record<string, number> = {};
 
     for (const item of items) {
-      quantities[item.id_producto] = (quantities[item.id_producto] || 0) + item.cantidad;
+      quantities[item.clave] = item.cantidad;
     }
 
     return quantities;
@@ -330,7 +381,8 @@ export function StoreCartProvider({ children }: StoreCartProviderProps) {
     () => ({
       cartId,
       items,
-      getProductQuantity: (productId: string) => quantityByProductId[productId] || 0,
+      getProductQuantity: (productId: string, selectedMeasure?: string | null) =>
+        quantityByLineKey[buildCartLineKey(productId, selectedMeasure)] || 0,
       itemCount: items.reduce((total, item) => total + item.cantidad, 0),
       totalAmount: items.reduce(
         (total, item) => total + item.precio * item.cantidad,
@@ -380,7 +432,7 @@ export function StoreCartProvider({ children }: StoreCartProviderProps) {
       isReady,
       items,
       openDrawer,
-      quantityByProductId,
+      quantityByLineKey,
       removeItem,
       updateItemQuantity,
     ]

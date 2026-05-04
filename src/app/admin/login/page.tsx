@@ -126,13 +126,13 @@ export default function AdminLoginPage() {
           </label>
 
           <label className="block space-y-2">
-            <span className="text-sm font-medium text-zinc-700">Password</span>
+            <span className="text-sm font-medium text-zinc-700">Contraseña</span>
             <Input
               className="border-zinc-300"
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="Tu password"
+              placeholder="Tu contraseña"
               autoComplete="current-password"
               required
             />
